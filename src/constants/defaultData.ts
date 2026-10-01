@@ -190,4 +190,21 @@ export const DEFAULT_STUDENTS: Student[] = [
       item_e_3: { tanggal: '9', penguji: 'q', keterangan: 'Lulus' },
     },
   },
+  {
+    id: 'std_fatimah',
+    name: 'FATIMAH AZ-ZAHRA',
+    nis: '111236740052251030',
+    nisn: '3183369707',
+    kelas: '5',
+    tahunPelajaran: '2026/2027',
+    records: {
+      item_a_1: { tanggal: '1', penguji: 'q', keterangan: 'Lulus' },
+      item_a_2: { tanggal: '2', penguji: 'q', keterangan: 'Lulus' },
+      item_b_1: { tanggal: '3', penguji: 'q', keterangan: 'Lulus' },
+      item_b_2: { tanggal: '4', penguji: 'q', keterangan: 'Lulus' },
+      item_c_1: { tanggal: '5', penguji: 'q', keterangan: 'Lulus' },
+      item_d_1: { tanggal: '6', penguji: 'q', keterangan: 'Lulus' },
+      item_e_2: { tanggal: '7', penguji: 'q', keterangan: 'Lulus' },
+    },
+  },
 ];

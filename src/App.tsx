@@ -17,6 +17,12 @@ import {
   UserCheck,
   FileSpreadsheet,
   Filter,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  GraduationCap,
+  X,
+  Check,
 } from 'lucide-react';
 
 import { HafalanCategory, PrintFilterMode, SchoolConfig, Student } from './types';
@@ -103,6 +109,75 @@ export default function App() {
   });
   const [defaultPenguji, setDefaultPenguji] = useState<string>('q');
   const [printFilterMode, setPrintFilterMode] = useState<PrintFilterMode>('class');
+
+  // Student class filter & search
+  const [studentClassFilter, setStudentClassFilter] = useState<string>('all');
+  const [studentSearchQuery, setStudentSearchQuery] = useState<string>('');
+
+  // Extract all distinct classes
+  const availableStudentClasses = Array.from(
+    new Set(students.map((s) => s.kelas?.trim()).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  // Filter students based on selected class and search keyword
+  const visibleStudents = students.filter((s) => {
+    const matchesClass =
+      studentClassFilter === 'all' ||
+      s.kelas?.trim().toLowerCase() === studentClassFilter.trim().toLowerCase();
+    const query = studentSearchQuery.trim().toLowerCase();
+    const matchesSearch =
+      !query ||
+      s.name.toLowerCase().includes(query) ||
+      (s.nis && s.nis.toLowerCase().includes(query)) ||
+      (s.nisn && s.nisn.toLowerCase().includes(query));
+    return matchesClass && matchesSearch;
+  });
+
+  // Group visible students by class
+  const groupedVisibleStudents = visibleStudents.reduce<Record<string, Student[]>>(
+    (acc, s) => {
+      const cls = s.kelas?.trim() || 'Tanpa Kelas';
+      if (!acc[cls]) acc[cls] = [];
+      acc[cls].push(s);
+      return acc;
+    },
+    {}
+  );
+  const sortedVisibleClasses = Object.keys(groupedVisibleStudents).sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true })
+  );
+
+  const handleClassFilterChange = (newCls: string) => {
+    setStudentClassFilter(newCls);
+    if (newCls !== 'all') {
+      const inClass = students.filter(
+        (s) => s.kelas?.trim().toLowerCase() === newCls.trim().toLowerCase()
+      );
+      if (
+        inClass.length > 0 &&
+        (!activeStudent || activeStudent.kelas?.trim().toLowerCase() !== newCls.trim().toLowerCase())
+      ) {
+        setActiveStudentId(inClass[0].id);
+      }
+    }
+  };
+
+  const currentVisibleIndex = visibleStudents.findIndex((s) => s.id === activeStudentId);
+  const hasPrevStudent = currentVisibleIndex > 0;
+  const hasNextStudent =
+    currentVisibleIndex >= 0 && currentVisibleIndex < visibleStudents.length - 1;
+
+  const handlePrevStudent = () => {
+    if (hasPrevStudent) {
+      setActiveStudentId(visibleStudents[currentVisibleIndex - 1].id);
+    }
+  };
+
+  const handleNextStudent = () => {
+    if (hasNextStudent) {
+      setActiveStudentId(visibleStudents[currentVisibleIndex + 1].id);
+    }
+  };
 
   const handleUpdateExaminers = (updated: string[]) => {
     setExaminers(updated);
@@ -593,58 +668,179 @@ export default function App() {
 
       {/* 2. PROMINENT STUDENT SELECTOR HERO CARD (NO-PRINT) */}
       <section className="no-print max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-1 w-full">
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-4">
-          {/* Student Dropdown & Switcher */}
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-800 flex items-center justify-center font-bold">
-              <Users className="w-5 h-5 text-emerald-700" />
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-3">
+          {/* Top Row: Class Grouping Filter & Student Search Box (User Request: Siswa tiap kelas dikelompokkan + Cari nama siswa) */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            {/* Filter by Class */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <GraduationCap className="w-4 h-4 text-emerald-700" />
+                <span>Pilih Kelas:</span>
+              </span>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleClassFilterChange('all')}
+                  className={`px-3 py-1 text-xs rounded-xl font-bold transition-all cursor-pointer ${
+                    studentClassFilter === 'all'
+                      ? 'bg-emerald-700 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                  }`}
+                >
+                  Semua Kelas ({students.length})
+                </button>
+
+                {availableStudentClasses.map((cls) => {
+                  const countInClass = students.filter(
+                    (s) => s.kelas.trim().toLowerCase() === cls.toLowerCase()
+                  ).length;
+                  const isSelected = studentClassFilter.toLowerCase() === cls.toLowerCase();
+
+                  return (
+                    <button
+                      key={cls}
+                      type="button"
+                      onClick={() => handleClassFilterChange(cls)}
+                      className={`px-3 py-1 text-xs rounded-xl font-bold transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-emerald-700 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                      }`}
+                    >
+                      Kelas {cls} ({countInClass})
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
-                Siswa yang Sedang Dinilai:
-              </label>
-              <div className="relative">
-                <select
-                  value={activeStudentId}
-                  onChange={(e) => setActiveStudentId(e.target.value)}
-                  className="w-full appearance-none pr-8 py-1 bg-transparent text-base sm:text-lg font-extrabold text-slate-900 border-none focus:outline-none cursor-pointer"
+            {/* Search Student Name in Class (User Request: Fitur cari nama siswa di kelas untuk memudahkan) */}
+            <div className="relative flex-1 sm:max-w-xs min-w-[210px]">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={studentSearchQuery}
+                onChange={(e) => setStudentSearchQuery(e.target.value)}
+                placeholder={
+                  studentClassFilter === 'all'
+                    ? 'Cari nama siswa / NIS...'
+                    : `Cari nama di Kelas ${studentClassFilter}...`
+                }
+                className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 focus:outline-none"
+              />
+              {studentSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setStudentSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
-                  {students.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} (Kelas {s.kelas})
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Student Metadata & Quick Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
-              <span className="font-semibold text-slate-700">Kelas:</span> {activeStudent?.kelas || '-'} &nbsp;·&nbsp;
-              <span className="font-semibold text-slate-700">NIS:</span> {activeStudent?.nis || '-'}
+          {/* Bottom Row: Active Student Picker with Prev/Next, Badges, and Action Buttons */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            {/* Student Dropdown & Switcher with Prev / Next */}
+            <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-800 flex items-center justify-center font-bold flex-shrink-0">
+                <Users className="w-5 h-5 text-emerald-700" />
+              </div>
+
+              <div className="flex-1 min-w-[200px]">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
+                    Siswa yang Sedang Dinilai:
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    {visibleStudents.length} siswa ditemukan
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <select
+                      value={activeStudentId}
+                      onChange={(e) => setActiveStudentId(e.target.value)}
+                      className="w-full appearance-none pr-8 py-1 bg-transparent text-base sm:text-lg font-extrabold text-slate-900 border-none focus:outline-none cursor-pointer"
+                    >
+                      {visibleStudents.length === 0 ? (
+                        <option value="" disabled>
+                          Tidak ada siswa ditemukan
+                        </option>
+                      ) : studentClassFilter === 'all' ? (
+                        sortedVisibleClasses.map((cls) => (
+                          <optgroup key={cls} label={`KELAS ${cls}`}>
+                            {groupedVisibleStudents[cls]?.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name} (NIS: {s.nis || '-'})
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))
+                      ) : (
+                        visibleStudents.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} (NIS: {s.nis || '-'})
+                          </option>
+                        ))
+                      )}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+
+                  {/* Previous / Next Student buttons for rapid grading */}
+                  <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={handlePrevStudent}
+                      disabled={!hasPrevStudent}
+                      title="Siswa Sebelumnya di Kelas Ini"
+                      className="p-1 text-slate-600 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer rounded hover:bg-white"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextStudent}
+                      disabled={!hasNextStudent}
+                      title="Siswa Selanjutnya di Kelas Ini"
+                      className="p-1 text-slate-600 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer rounded hover:bg-white"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <button
-              onClick={() => setIsExcelImportModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl border border-emerald-200 transition-colors shadow-2xs cursor-pointer"
-              title="Unggah file Excel untuk memasukkan data siswa secara otomatis"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Impor Excel</span>
-            </button>
+            {/* Student Metadata & Quick Action Buttons */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                <span className="font-semibold text-slate-700">Kelas:</span> {activeStudent?.kelas || '-'} &nbsp;·&nbsp;
+                <span className="font-semibold text-slate-700">NIS:</span> {activeStudent?.nis || '-'}
+              </div>
 
-            <button
-              onClick={() => setIsStudentModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-emerald-700 bg-slate-100 hover:bg-emerald-50 rounded-xl transition-colors cursor-pointer"
-              title="Edit biodata siswa atau tambah siswa baru"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>Ganti / Edit Siswa</span>
-            </button>
+              <button
+                onClick={() => setIsExcelImportModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl border border-emerald-200 transition-colors shadow-2xs cursor-pointer"
+                title="Unggah file Excel untuk memasukkan data siswa secara otomatis"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Impor Excel</span>
+              </button>
+
+              <button
+                onClick={() => setIsStudentModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-emerald-700 bg-slate-100 hover:bg-emerald-50 rounded-xl transition-colors cursor-pointer"
+                title="Edit biodata siswa atau tambah siswa baru"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Ganti / Edit Siswa</span>
+              </button>
+            </div>
           </div>
         </div>
       </section>
