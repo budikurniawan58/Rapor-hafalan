@@ -11,6 +11,7 @@ interface SettingsModalProps {
   onUpdateConfig: (updated: SchoolConfig) => void;
   onExportAllData: () => void;
   onImportData: (file: File) => void;
+  onOpenExaminerManager?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -20,6 +21,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdateConfig,
   onExportAllData,
   onImportData,
+  onOpenExaminerManager,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
@@ -201,9 +203,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Nama Lengkap & Gelar Guru/Penguji
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-bold text-slate-700">
+                  Nama Lengkap & Gelar Guru/Penguji
+                </label>
+                {onOpenExaminerManager && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenExaminerManager();
+                    }}
+                    className="text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold underline cursor-pointer"
+                  >
+                    + Kelola Daftar Penguji
+                  </button>
+                )}
+              </div>
               <input
                 type="text"
                 value={config.examinerName}

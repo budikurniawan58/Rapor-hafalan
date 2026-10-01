@@ -10,6 +10,11 @@ import {
   Layers,
   ZoomIn,
   ZoomOut,
+  Edit3,
+  FileText,
+  Eye,
+  Columns,
+  UserCheck,
 } from 'lucide-react';
 
 import { HafalanCategory, SchoolConfig, Student } from './types';
@@ -24,6 +29,7 @@ import { StudentManagerModal } from './components/StudentManagerModal';
 import { MateriManagerModal } from './components/MateriManagerModal';
 import { SettingsModal } from './components/SettingsModal';
 import { BatchPrintModal } from './components/BatchPrintModal';
+import { ExaminerManagerModal } from './components/ExaminerManagerModal';
 import { SchoolLogo } from './components/SchoolLogo';
 
 const STORAGE_KEY_STUDENTS = 'kartu_hafalan_students_v1';
@@ -31,7 +37,7 @@ const STORAGE_KEY_CATEGORIES = 'kartu_hafalan_categories_v1';
 const STORAGE_KEY_CONFIG = 'kartu_hafalan_config_v1';
 
 export default function App() {
-  // Initialize state from localStorage or defaults
+  // State
   const [students, setStudents] = useState<Student[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_STUDENTS);
@@ -63,19 +69,41 @@ export default function App() {
     students[0]?.id || 'std_adia'
   );
 
-  // UI state
-  const [activeView, setActiveView] = useState<'split' | 'input' | 'preview'>('split');
-  const [zoomLevel, setZoomLevel] = useState<number>(0.9);
+  // Simplified views: 'input' (Input Nilai), 'preview' (Lihat & Cetak), 'split' (Berdampingan)
+  const [activeTab, setActiveTab] = useState<'input' | 'preview' | 'split'>('input');
+  const [zoomLevel, setZoomLevel] = useState<number>(0.95);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Modals
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [isMateriModalOpen, setIsMateriModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isBatchPrintModalOpen, setIsBatchPrintModalOpen] = useState(false);
+  const [isExaminerModalOpen, setIsExaminerModalOpen] = useState(false);
   const [batchPrintStudentIds, setBatchPrintStudentIds] = useState<string[]>([]);
 
-  // Sync to localStorage
+  // Examiners list for dropdown
+  const [examiners, setExaminers] = useState<string[]>(() => {
+    if (config.examiners && config.examiners.length > 0) {
+      return config.examiners;
+    }
+    return [
+      'q',
+      'FIKRA ABDILLAH ZAENAL, S.S, S.Pd',
+      'Ustadzah Rahmawati, S.Pd.I',
+      'Ustadz Muhammad Ilham, Lc',
+    ];
+  });
+  const [defaultPenguji, setDefaultPenguji] = useState<string>('q');
+
+  const handleUpdateExaminers = (updated: string[]) => {
+    setExaminers(updated);
+    setConfig((prev) => ({ ...prev, examiners: updated }));
+    showToast('Daftar nama penguji berhasil diperbarui!');
+  };
+
+  // Sync with localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
   }, [students]);
@@ -99,13 +127,13 @@ export default function App() {
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Find active student
+  // Find active student safely
   const activeStudent = students.find((s) => s.id === activeStudentId) || students[0];
 
-  // Update a single evaluation cell
+  // Update a single evaluation record
   const handleUpdateRecord = (
     itemId: string,
     field: 'tanggal' | 'penguji' | 'keterangan',
@@ -136,7 +164,7 @@ export default function App() {
     );
   };
 
-  // Bulk update evaluation cells for active student
+  // Bulk update
   const handleBatchUpdateRecords = (
     newRecords: Record<string, { tanggal: string; penguji: string; keterangan: string }>
   ) => {
@@ -200,7 +228,6 @@ export default function App() {
 
   const handleTriggerBatchPrint = (selectedIds: string[]) => {
     setBatchPrintStudentIds(selectedIds);
-    // Allow React state to update the DOM before printing
     setTimeout(() => {
       window.print();
     }, 150);
@@ -224,7 +251,7 @@ export default function App() {
     a.download = `kartu_hafalan_backup_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Cadangan data berhasil diekspor!');
+    showToast('Cadangan data berhasil diunduh!');
   };
 
   const handleImportData = (file: File) => {
@@ -244,253 +271,424 @@ export default function App() {
           alert('Format file JSON tidak sesuai.');
         }
       } catch {
-        alert('Gagal membaca file JSON cadangan.');
+        alert('Gagal membaca file JSON.');
       }
     };
     reader.readAsText(file);
   };
 
-  // Students to render during print
   const studentsToPrint =
     batchPrintStudentIds.length > 0
       ? students.filter((s) => batchPrintStudentIds.includes(s.id))
       : activeStudent ? [activeStudent] : [];
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col">
-      {/* TOAST NOTIFICATION */}
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
+      {/* TOAST FEEDBACK */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-60 bg-emerald-900 text-white text-xs px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 border border-emerald-700 animate-in fade-in slide-in-from-top-3">
+        <div className="fixed top-4 right-4 z-60 bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 animate-in fade-in slide-in-from-top-3 border border-slate-700">
           <CheckCircle className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
+          <span className="font-medium">{toastMessage}</span>
         </div>
       )}
 
-      {/* TOP APPLICATION NAVBAR (HIDDEN IN PRINT) */}
-      <header className="no-print bg-emerald-900 text-white border-b border-emerald-950 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
-          {/* Logo & School Header */}
+      {/* 1. SIMPLE TOP HEADER (NO-PRINT) */}
+      <header className="no-print bg-emerald-900 text-white sticky top-0 z-40 shadow-sm border-b border-emerald-950">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
+          {/* Logo & School Name */}
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-white/10 rounded-lg p-1 flex items-center justify-center border border-white/20">
-              <SchoolLogo customLogoUrl={config.customLogoUrl} size={28} />
+            <div className="w-9 h-9 rounded-lg bg-white/10 p-1 flex items-center justify-center border border-white/15">
+              <SchoolLogo customLogoUrl={config.customLogoUrl} size={30} />
             </div>
             <div>
-              <div className="font-extrabold text-sm sm:text-base leading-tight tracking-wide flex items-center gap-2">
-                <span>MI RAUDLATUL HIKMAH</span>
-                <span className="text-[10px] font-normal px-2 py-0.5 bg-emerald-800 text-emerald-200 rounded-full border border-emerald-700/60 hidden sm:inline">
-                  T.P {config.academicYear}
-                </span>
+              <div className="font-extrabold text-sm sm:text-base leading-tight tracking-wide">
+                MI RAUDLATUL HIKMAH
               </div>
-              <p className="text-[11px] text-emerald-200/90 font-medium">
-                Sistem Input & Cetak Kartu Hafalan Siswa Resmi
-              </p>
+              <div className="text-[11px] text-emerald-200">
+                Kartu Hafalan Siswa · T.P {config.academicYear}
+              </div>
             </div>
           </div>
 
-          {/* Nav Action Buttons */}
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Simple Navigation Tabs in Center */}
+          <div className="hidden md:flex items-center bg-emerald-950/60 p-1 rounded-xl border border-emerald-800/80 text-xs font-semibold">
             <button
-              onClick={() => setIsStudentModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-800/80 hover:bg-emerald-800 text-xs font-semibold rounded-lg border border-emerald-700/80 transition-colors cursor-pointer"
+              onClick={() => setActiveTab('input')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                activeTab === 'input'
+                  ? 'bg-emerald-700 text-white shadow-2xs'
+                  : 'text-emerald-200 hover:text-white'
+              }`}
             >
-              <Users className="w-3.5 h-3.5" />
-              <span>Data Siswa ({students.length})</span>
+              <FileText className="w-3.5 h-3.5" />
+              <span>1. Input Nilai Hafalan</span>
             </button>
-
             <button
-              onClick={() => setIsMateriModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-800/80 hover:bg-emerald-800 text-xs font-semibold rounded-lg border border-emerald-700/80 transition-colors cursor-pointer"
+              onClick={() => setActiveTab('preview')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                activeTab === 'preview'
+                  ? 'bg-emerald-700 text-white shadow-2xs'
+                  : 'text-emerald-200 hover:text-white'
+              }`}
             >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Materi Hafalan</span>
+              <Eye className="w-3.5 h-3.5" />
+              <span>2. Pratinjau & Cetak</span>
             </button>
-
             <button
-              onClick={() => setIsSettingsModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-800/80 hover:bg-emerald-800 text-xs font-semibold rounded-lg border border-emerald-700/80 transition-colors cursor-pointer"
-              title="Pengaturan Kop Madrasah & Penguji"
+              onClick={() => setActiveTab('split')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                activeTab === 'split'
+                  ? 'bg-emerald-700 text-white shadow-2xs'
+                  : 'text-emerald-300/80 hover:text-white'
+              }`}
+              title="Tampilkan formulir dan kartu cetak berdampingan"
             >
-              <Settings className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Kop & TTD</span>
+              <Columns className="w-3.5 h-3.5" />
+              <span>Berdampingan</span>
             </button>
+          </div>
 
-            <button
-              onClick={() => setIsBatchPrintModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-800/80 hover:bg-emerald-800 text-xs font-semibold rounded-lg border border-emerald-700/80 transition-colors cursor-pointer"
-              title="Cetak beberapa siswa sekaligus"
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Cetak Massal</span>
-            </button>
-
+          {/* Header Action Buttons */}
+          <div className="flex items-center gap-2">
             {/* Primary Print Button */}
             <button
               onClick={handlePrintActiveStudent}
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-colors cursor-pointer"
             >
               <Printer className="w-4 h-4 text-slate-950" />
-              <span>Cetak Kartu Siswa Ini</span>
+              <span>Cetak Kartu (A4)</span>
             </button>
+
+            {/* Menu Lainnya Button */}
+            <div className="relative">
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="inline-flex items-center gap-1 px-3 py-2 bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl border border-emerald-700 transition-colors cursor-pointer"
+              >
+                <span>Menu Lainnya</span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {isMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 text-slate-800 text-xs">
+                    <button
+                      onClick={() => {
+                        setIsStudentModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 font-medium cursor-pointer"
+                    >
+                      <Users className="w-4 h-4 text-emerald-700" />
+                      <span>Kelola Data Siswa ({students.length})</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsMateriModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 font-medium cursor-pointer"
+                    >
+                      <BookOpen className="w-4 h-4 text-blue-700" />
+                      <span>Atur Materi & Kategori Hafalan</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsExaminerModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 font-medium cursor-pointer"
+                    >
+                      <UserCheck className="w-4 h-4 text-emerald-700" />
+                      <span>Daftar Nama Penguji ({examiners.length})</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsSettingsModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 font-medium cursor-pointer"
+                    >
+                      <Settings className="w-4 h-4 text-slate-600" />
+                      <span>Pengaturan Kop & Penguji</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsBatchPrintModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 font-medium cursor-pointer"
+                    >
+                      <Layers className="w-4 h-4 text-amber-600" />
+                      <span>Cetak Massal Semua Siswa</span>
+                    </button>
+
+                    <div className="border-t border-slate-100 my-1" />
+
+                    <button
+                      onClick={() => {
+                        handleExportAllData();
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-600 cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Cadangkan Data (JSON)</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
+        </div>
+
+        {/* Mobile Navigation Tabs */}
+        <div className="md:hidden flex border-t border-emerald-800 text-xs">
+          <button
+            onClick={() => setActiveTab('input')}
+            className={`flex-1 py-2 text-center font-semibold ${
+              activeTab === 'input'
+                ? 'bg-emerald-800 text-white border-b-2 border-amber-400'
+                : 'text-emerald-200'
+            }`}
+          >
+            1. Input Nilai
+          </button>
+          <button
+            onClick={() => setActiveTab('preview')}
+            className={`flex-1 py-2 text-center font-semibold ${
+              activeTab === 'preview'
+                ? 'bg-emerald-800 text-white border-b-2 border-amber-400'
+                : 'text-emerald-200'
+            }`}
+          >
+            2. Pratinjau & Cetak
+          </button>
+          <button
+            onClick={() => setActiveTab('split')}
+            className={`flex-1 py-2 text-center font-semibold ${
+              activeTab === 'split'
+                ? 'bg-emerald-800 text-white border-b-2 border-amber-400'
+                : 'text-emerald-200'
+            }`}
+          >
+            Berdampingan
+          </button>
         </div>
       </header>
 
-      {/* STUDENT SELECTION & VIEW SWITCHER BAR */}
-      <section className="no-print bg-white border-b border-slate-200 sticky top-[57px] z-30 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
-          {/* Active Student Switcher Dropdown */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider hidden sm:inline">
-              Siswa Terpilih:
-            </span>
-            <div className="relative">
-              <select
-                value={activeStudentId}
-                onChange={(e) => setActiveStudentId(e.target.value)}
-                className="appearance-none pl-3 pr-8 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-300 text-slate-900 font-bold text-xs sm:text-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-              >
-                {students.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} (Kelas {s.kelas})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+      {/* 2. PROMINENT STUDENT SELECTOR HERO CARD (NO-PRINT) */}
+      <section className="no-print max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-1 w-full">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-4">
+          {/* Student Dropdown & Switcher */}
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-800 flex items-center justify-center font-bold">
+              <Users className="w-5 h-5 text-emerald-700" />
+            </div>
+
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
+                Siswa yang Sedang Dinilai:
+              </label>
+              <div className="relative">
+                <select
+                  value={activeStudentId}
+                  onChange={(e) => setActiveStudentId(e.target.value)}
+                  className="w-full appearance-none pr-8 py-1 bg-transparent text-base sm:text-lg font-extrabold text-slate-900 border-none focus:outline-none cursor-pointer"
+                >
+                  {students.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} (Kelas {s.kelas})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+          </div>
+
+          {/* Student Metadata & Quick Action Buttons */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+              <span className="font-semibold text-slate-700">Kelas:</span> {activeStudent?.kelas || '-'} &nbsp;·&nbsp;
+              <span className="font-semibold text-slate-700">NIS:</span> {activeStudent?.nis || '-'}
             </div>
 
             <button
               onClick={() => setIsStudentModalOpen(true)}
-              className="text-xs text-emerald-700 hover:text-emerald-800 font-semibold cursor-pointer underline underline-offset-2"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-emerald-700 bg-slate-100 hover:bg-emerald-50 rounded-xl transition-colors cursor-pointer"
+              title="Edit biodata siswa atau tambah siswa baru"
             >
-              + Tambah / Edit Biodata
-            </button>
-          </div>
-
-          {/* View mode segmented switcher */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg text-xs font-medium">
-            <button
-              onClick={() => setActiveView('split')}
-              className={`px-3 py-1 rounded-md transition-colors cursor-pointer ${
-                activeView === 'split'
-                  ? 'bg-white text-slate-900 shadow-2xs font-semibold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Split View (Input & Preview)
-            </button>
-            <button
-              onClick={() => setActiveView('input')}
-              className={`px-3 py-1 rounded-md transition-colors cursor-pointer ${
-                activeView === 'input'
-                  ? 'bg-white text-slate-900 shadow-2xs font-semibold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Hanya Input Nilai
-            </button>
-            <button
-              onClick={() => setActiveView('preview')}
-              className={`px-3 py-1 rounded-md transition-colors cursor-pointer ${
-                activeView === 'preview'
-                  ? 'bg-white text-slate-900 shadow-2xs font-semibold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Pratinjau Cetak Penuh
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Ganti / Edit Siswa</span>
             </button>
           </div>
         </div>
       </section>
 
-      {/* STUDENT PROFILE STRIP (NO-PRINT) */}
-      <div className="no-print max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-2 w-full">
-        <div className="bg-white rounded-xl p-3 border border-slate-200 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs">
-            <div>
-              <span className="text-slate-400 font-semibold mr-1.5">NAMA:</span>
-              <span className="font-bold text-slate-900 text-sm">{activeStudent.name}</span>
-            </div>
-            <div>
-              <span className="text-slate-400 font-semibold mr-1.5">NIS / NISN:</span>
-              <span className="font-semibold text-slate-700">
-                {activeStudent.nis && activeStudent.nisn
-                  ? `${activeStudent.nis} / ${activeStudent.nisn}`
-                  : activeStudent.nis || activeStudent.nisn || '-'}
-              </span>
-            </div>
-            <div>
-              <span className="text-slate-400 font-semibold mr-1.5">KELAS:</span>
-              <span className="font-semibold text-slate-700">{activeStudent.kelas}</span>
-            </div>
-            <div>
-              <span className="text-slate-400 font-semibold mr-1.5">TAHUN PELAJARAN:</span>
-              <span className="font-semibold text-slate-700">{activeStudent.tahunPelajaran}</span>
-            </div>
-          </div>
-
-          <div className="text-xs text-slate-500">
-            Penilai: <strong className="text-slate-800">{config.examinerName}</strong>
-          </div>
-        </div>
-      </div>
-
-      {/* MAIN WORKSPACE CONTENT AREA (NO-PRINT) */}
+      {/* 3. MAIN WORKSPACE (NO-PRINT) */}
       <main className="no-print flex-1 max-w-7xl mx-auto px-4 sm:px-6 py-4 w-full">
-        {/* VIEW: SPLIT (DEFAULT FOR DESKTOP) */}
-        {activeView === 'split' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left: Hafalan Input & Scoring (7 cols) */}
-            <div className="lg:col-span-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-800">
-                  Formulir Pengujian Hafalan Siswa
-                </h3>
-                <span className="text-xs text-slate-500">
-                  Data otomatis terhubung ke kartu cetak di sebelah kanan
+        {/* TAB 1: INPUT NILAI ONLY (CLEAR, SIMPLE, USER-FRIENDLY) */}
+        {activeTab === 'input' && (
+          <div className="space-y-4">
+            <HafalanInputTable
+              student={activeStudent}
+              categories={categories}
+              examiners={examiners}
+              defaultPenguji={defaultPenguji}
+              onChangeDefaultPenguji={setDefaultPenguji}
+              onUpdateRecord={handleUpdateRecord}
+              onBatchUpdateRecords={handleBatchUpdateRecords}
+              onOpenMateriManager={() => setIsMateriModalOpen(true)}
+              onOpenExaminerManager={() => setIsExaminerModalOpen(true)}
+            />
+
+            {/* Bottom Next Step Callout */}
+            <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs text-emerald-950">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                <span>Semua pengisian nilai tersimpan otomatis. Siap melihat atau mencetak hasil kartu?</span>
+              </div>
+              <button
+                onClick={() => setActiveTab('preview')}
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl transition-colors shadow-xs cursor-pointer ml-auto"
+              >
+                Lihat Pratinjau & Cetak Kartu →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: PRATINJAU & CETAK ONLY (CLEAN A4 PAPER PREVIEW) */}
+        {activeTab === 'preview' && (
+          <div className="space-y-4">
+            {/* Top Toolbar for Preview */}
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-bold text-slate-800">
+                  Pratinjau Kartu: <span className="text-emerald-800">{activeStudent.name}</span>
+                </div>
+                <span className="text-[11px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full">
+                  Format Resmi A4
                 </span>
               </div>
 
+              <div className="flex items-center gap-2">
+                {/* Zoom Controls */}
+                <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-lg">
+                  <button
+                    onClick={() => setZoomLevel((z) => Math.max(0.6, z - 0.1))}
+                    className="p-1 text-slate-600 hover:text-slate-900 cursor-pointer"
+                    title="Perkecil"
+                  >
+                    <ZoomOut className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs font-mono px-1">
+                    {Math.round(zoomLevel * 100)}%
+                  </span>
+                  <button
+                    onClick={() => setZoomLevel((z) => Math.min(1.3, z + 0.1))}
+                    className="p-1 text-slate-600 hover:text-slate-900 cursor-pointer"
+                    title="Perbesar"
+                  >
+                    <ZoomIn className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Print button */}
+                <button
+                  onClick={handlePrintActiveStudent}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Cetak Siswa Ini</span>
+                </button>
+
+                <button
+                  onClick={() => setIsBatchPrintModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+                >
+                  <Layers className="w-4 h-4" />
+                  <span>Cetak Massal</span>
+                </button>
+              </div>
+            </div>
+
+            {/* A4 Sheet Container */}
+            <div className="bg-slate-300/80 rounded-2xl p-6 sm:p-8 overflow-auto min-h-[650px] flex justify-center border border-slate-400/40">
+              <div
+                style={{
+                  transform: `scale(${zoomLevel})`,
+                  transformOrigin: 'top center',
+                  transition: 'transform 0.15s ease-out',
+                }}
+                className="shadow-2xl mb-12"
+              >
+                <PrintCard
+                  student={activeStudent}
+                  categories={categories}
+                  config={config}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: SPLIT VIEW (BOTH SIDE-BY-SIDE) */}
+        {activeTab === 'split' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left: Input Form (6 cols) */}
+            <div className="lg:col-span-6 space-y-3">
+              <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                1. Formulir Nilai
+              </div>
               <HafalanInputTable
                 student={activeStudent}
                 categories={categories}
+                examiners={examiners}
+                defaultPenguji={defaultPenguji}
+                onChangeDefaultPenguji={setDefaultPenguji}
                 onUpdateRecord={handleUpdateRecord}
                 onBatchUpdateRecords={handleBatchUpdateRecords}
                 onOpenMateriManager={() => setIsMateriModalOpen(true)}
+                onOpenExaminerManager={() => setIsExaminerModalOpen(true)}
               />
             </div>
 
-            {/* Right: Live A4 Printable Preview (6 cols) */}
+            {/* Right: Live Preview (6 cols) */}
             <div className="lg:col-span-6 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-slate-800">
-                    Pratinjau Hasil Cetak (1:1 Sesuai Dokumen)
-                  </h3>
-                  <span className="text-[10px] bg-slate-200 text-slate-700 font-semibold px-2 py-0.5 rounded">
-                    A4 Portrait
-                  </span>
+                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  2. Hasil Kartu Cetak Langsung
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setZoomLevel((z) => Math.max(0.6, z - 0.1))}
-                    className="p-1 hover:bg-slate-200 rounded text-slate-600 cursor-pointer"
-                    title="Perkecil"
+                    className="p-1 hover:bg-slate-200 rounded text-slate-600"
                   >
                     <ZoomOut className="w-3.5 h-3.5" />
                   </button>
-                  <span className="text-xs text-slate-500 font-mono w-10 text-center">
+                  <span className="text-xs font-mono text-slate-500">
                     {Math.round(zoomLevel * 100)}%
                   </span>
                   <button
                     onClick={() => setZoomLevel((z) => Math.min(1.2, z + 0.1))}
-                    className="p-1 hover:bg-slate-200 rounded text-slate-600 cursor-pointer"
-                    title="Perbesar"
+                    className="p-1 hover:bg-slate-200 rounded text-slate-600"
                   >
                     <ZoomIn className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={handlePrintActiveStudent}
-                    className="ml-2 inline-flex items-center gap-1 px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-2xs cursor-pointer"
+                    className="ml-2 inline-flex items-center gap-1 px-3 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-lg"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     Cetak
@@ -498,8 +696,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Scrollable sheet container */}
-              <div className="bg-slate-200/80 rounded-xl p-4 overflow-auto max-h-[820px] flex justify-center border border-slate-300">
+              <div className="bg-slate-200/90 rounded-2xl p-4 overflow-auto max-h-[820px] flex justify-center border border-slate-300 shadow-inner">
                 <div
                   style={{
                     transform: `scale(${zoomLevel})`,
@@ -518,118 +715,25 @@ export default function App() {
             </div>
           </div>
         )}
-
-        {/* VIEW: FULL INPUT ONLY */}
-        {activeView === 'input' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">
-                  Form Pengisian Nilai & Ujian Hafalan: {activeStudent.name}
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Isi tanggal lulus ujian, inisial/nama penguji, dan keterangan kelulusan
-                </p>
-              </div>
-              <button
-                onClick={handlePrintActiveStudent}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-xl shadow-xs cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                Cetak Kartu Siswa Ini
-              </button>
-            </div>
-
-            <HafalanInputTable
-              student={activeStudent}
-              categories={categories}
-              onUpdateRecord={handleUpdateRecord}
-              onBatchUpdateRecords={handleBatchUpdateRecords}
-              onOpenMateriManager={() => setIsMateriModalOpen(true)}
-            />
-          </div>
-        )}
-
-        {/* VIEW: FULL PREVIEW ONLY */}
-        {activeView === 'preview' && (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900">
-                  Pratinjau Ukuran Penuh Kartu Hafalan (Format A4)
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Format cetak ini telah disesuaikan persis dengan dokumen resmi MI Raudlatul Hikmah
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-lg">
-                  <button
-                    onClick={() => setZoomLevel((z) => Math.max(0.5, z - 0.1))}
-                    className="p-1 text-slate-600 hover:text-slate-900"
-                  >
-                    <ZoomOut className="w-4 h-4" />
-                  </button>
-                  <span className="text-xs font-mono px-1">
-                    {Math.round(zoomLevel * 100)}%
-                  </span>
-                  <button
-                    onClick={() => setZoomLevel((z) => Math.min(1.4, z + 0.1))}
-                    className="p-1 text-slate-600 hover:text-slate-900"
-                  >
-                    <ZoomIn className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <button
-                  onClick={handlePrintActiveStudent}
-                  className="inline-flex items-center gap-2 px-5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  Cetak / Simpan PDF
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-slate-300/80 rounded-2xl p-6 overflow-auto min-h-[600px] flex justify-center border border-slate-400/40">
-              <div
-                style={{
-                  transform: `scale(${zoomLevel})`,
-                  transformOrigin: 'top center',
-                  transition: 'transform 0.15s ease-out',
-                }}
-                className="shadow-2xl mb-12"
-              >
-                <PrintCard
-                  student={activeStudent}
-                  categories={categories}
-                  config={config}
-                />
-              </div>
-            </div>
-          </div>
-        )}
       </main>
 
       {/* FOOTER (NO-PRINT) */}
-      <footer className="no-print bg-white border-t border-slate-200 mt-auto py-3 px-4 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-          <span>
-            Aplikasi Kartu Hafalan Siswa · <strong>{config.schoolName}</strong>
-          </span>
+      <footer className="no-print bg-white border-t border-slate-200 py-3 px-4 text-xs text-slate-500 mt-auto">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+          <div>
+            Aplikasi Cetak Kartu Hafalan Siswa · <strong>{config.schoolName}</strong>
+          </div>
           <div className="flex items-center gap-4">
             <button
               onClick={handleExportAllData}
-              className="text-slate-600 hover:text-emerald-700 inline-flex items-center gap-1 cursor-pointer"
+              className="hover:text-emerald-700 underline underline-offset-2 cursor-pointer"
             >
-              <Download className="w-3.5 h-3.5" />
-              Backup Data JSON
+              Unduh Backup JSON
             </button>
-            <span className="text-slate-300">|</span>
+            <span>·</span>
             <button
               onClick={() => setIsSettingsModalOpen(true)}
-              className="text-slate-600 hover:text-emerald-700 cursor-pointer"
+              className="hover:text-emerald-700 underline underline-offset-2 cursor-pointer"
             >
               Pengaturan Lembaga
             </button>
@@ -637,7 +741,7 @@ export default function App() {
         </div>
       </footer>
 
-      {/* PRINT-ONLY DOM SECTION (Shown ONLY when window.print() is executed) */}
+      {/* PRINT-ONLY ROOT (Triggers cleanly on window.print()) */}
       <div className="print-root hidden print:block">
         {studentsToPrint.map((studentToPrint) => (
           <PrintCard
@@ -668,7 +772,7 @@ export default function App() {
         categories={categories}
         onSaveCategories={(newCats) => {
           setCategories(newCats);
-          showToast('Kategori dan materi hafalan berhasil diperbarui!');
+          showToast('Kategori dan butir hafalan berhasil diperbarui!');
         }}
       />
 
@@ -682,6 +786,7 @@ export default function App() {
         }}
         onExportAllData={handleExportAllData}
         onImportData={handleImportData}
+        onOpenExaminerManager={() => setIsExaminerModalOpen(true)}
       />
 
       <BatchPrintModal
@@ -689,6 +794,15 @@ export default function App() {
         onClose={() => setIsBatchPrintModalOpen(false)}
         students={students}
         onTriggerBatchPrint={handleTriggerBatchPrint}
+      />
+
+      <ExaminerManagerModal
+        isOpen={isExaminerModalOpen}
+        onClose={() => setIsExaminerModalOpen(false)}
+        examiners={examiners}
+        defaultExaminer={defaultPenguji}
+        onUpdateExaminers={handleUpdateExaminers}
+        onSetDefaultExaminer={setDefaultPenguji}
       />
     </div>
   );

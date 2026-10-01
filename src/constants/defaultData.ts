@@ -11,6 +11,12 @@ export const DEFAULT_SCHOOL_CONFIG: SchoolConfig = {
   parentTitle: 'Orang Tua / Wali Murid,',
   parentName: '',
   customLogoUrl: null,
+  examiners: [
+    'q',
+    'FIKRA ABDILLAH ZAENAL, S.S, S.Pd',
+    'Ustadzah Rahmawati, S.Pd.I',
+    'Ustadz Muhammad Ilham, Lc',
+  ],
 };
 
 export const DEFAULT_CATEGORIES: HafalanCategory[] = [

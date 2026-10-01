@@ -38,4 +38,5 @@ export interface SchoolConfig {
   parentTitle: string;
   parentName: string;
   customLogoUrl: string | null;
+  examiners?: string[];
 }
