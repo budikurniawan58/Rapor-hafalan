@@ -1,0 +1,6 @@
+{
+  "name": "Kartu Hafalan Siswa MI Raudlatul Hikmah",
+  "description": "Aplikasi pencatatan, penilaian, dan cetak kartu hafalan siswa Madrasah Ibtidaiyah Raudlatul Hikmah dengan format cetak resmi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
