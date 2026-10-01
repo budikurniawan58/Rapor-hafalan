@@ -1,12 +1,16 @@
+export type PrintFilterMode = 'class' | 'passed_only' | 'filled_only' | 'all';
+
 export interface HafalanItem {
   id: string;
   nama: string;
+  targetClasses?: string[]; // e.g., ['2.1'] or ['Semua Kelas']
 }
 
 export interface HafalanCategory {
   id: string;
   code: string; // e.g., 'A', 'B', 'C', 'D', 'E', 'F'
   name: string; // e.g., 'HAFALAN UMUM', 'DOA SEHARI-HARI'
+  targetClasses?: string[]; // optionally for whole category
   items: HafalanItem[];
 }
 
@@ -15,6 +19,7 @@ export interface HafalanRecord {
   penguji: string; // e.g. "q", paraf, or initials
   keterangan: string; // e.g. "Lulus", "Belum Lulus", "Mutqin"
   catatan?: string;
+  excludeFromPrint?: boolean; // when true, item is omitted from printed card
 }
 
 export interface Student {
@@ -39,4 +44,5 @@ export interface SchoolConfig {
   parentName: string;
   customLogoUrl: string | null;
   examiners?: string[];
+  printFilterMode?: PrintFilterMode;
 }

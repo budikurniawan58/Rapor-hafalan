@@ -16,9 +16,10 @@ import {
   Columns,
   UserCheck,
   FileSpreadsheet,
+  Filter,
 } from 'lucide-react';
 
-import { HafalanCategory, SchoolConfig, Student } from './types';
+import { HafalanCategory, PrintFilterMode, SchoolConfig, Student } from './types';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_SCHOOL_CONFIG,
@@ -34,6 +35,7 @@ import { ExaminerManagerModal } from './components/ExaminerManagerModal';
 import { ExcelImportModal } from './components/ExcelImportModal';
 import { SchoolLogo } from './components/SchoolLogo';
 import { downloadStudentExcelTemplate, ParsedStudentRow } from './utils/excelImport';
+import { getAvailableClasses } from './utils/hafalanFilter';
 
 const STORAGE_KEY_STUDENTS = 'kartu_hafalan_students_v1';
 const STORAGE_KEY_CATEGORIES = 'kartu_hafalan_categories_v1';
@@ -100,11 +102,70 @@ export default function App() {
     ];
   });
   const [defaultPenguji, setDefaultPenguji] = useState<string>('q');
+  const [printFilterMode, setPrintFilterMode] = useState<PrintFilterMode>('class');
 
   const handleUpdateExaminers = (updated: string[]) => {
     setExaminers(updated);
     setConfig((prev) => ({ ...prev, examiners: updated }));
     showToast('Daftar nama penguji berhasil diperbarui!');
+  };
+
+  const handleToggleExcludeFromPrint = (itemId: string, exclude: boolean) => {
+    if (!activeStudent) return;
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === activeStudent.id) {
+          const currentRecord = s.records[itemId] || {
+            tanggal: '',
+            penguji: '',
+            keterangan: '',
+          };
+          return {
+            ...s,
+            records: {
+              ...s.records,
+              [itemId]: {
+                ...currentRecord,
+                excludeFromPrint: exclude,
+              },
+            },
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const handleBatchToggleExcludeFromPrint = (itemIds: string[], exclude: boolean) => {
+    if (!activeStudent) return;
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === activeStudent.id) {
+          const updatedRecords = { ...s.records };
+          itemIds.forEach((id) => {
+            const currentRecord = updatedRecords[id] || {
+              tanggal: '',
+              penguji: '',
+              keterangan: '',
+            };
+            updatedRecords[id] = {
+              ...currentRecord,
+              excludeFromPrint: exclude,
+            };
+          });
+          return {
+            ...s,
+            records: updatedRecords,
+          };
+        }
+        return s;
+      })
+    );
+    showToast(
+      exclude
+        ? 'Materi ditandai untuk tidak dicetak.'
+        : 'Semua materi ditandai untuk dicetak.'
+    );
   };
 
   // Sync with localStorage
@@ -601,6 +662,8 @@ export default function App() {
               onChangeDefaultPenguji={setDefaultPenguji}
               onUpdateRecord={handleUpdateRecord}
               onBatchUpdateRecords={handleBatchUpdateRecords}
+              onToggleExcludeFromPrint={handleToggleExcludeFromPrint}
+              onBatchToggleExcludeFromPrint={handleBatchToggleExcludeFromPrint}
               onOpenMateriManager={() => setIsMateriModalOpen(true)}
               onOpenExaminerManager={() => setIsExaminerModalOpen(true)}
             />
@@ -621,7 +684,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 2: PRATINJAU & CETAK ONLY (CLEAN A4 PAPER PREVIEW) */}
+        {/* TAB 2: PRATINJAU & CETAK ONLY (CLEAN LEGAL PAPER PREVIEW) */}
         {activeTab === 'preview' && (
           <div className="space-y-4">
             {/* Top Toolbar for Preview */}
@@ -635,7 +698,23 @@ export default function App() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Print Filter Mode Selector */}
+                <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs">
+                  <Filter className="w-3.5 h-3.5 text-emerald-700" />
+                  <span className="text-slate-600 font-medium">Hafalan Dicetak:</span>
+                  <select
+                    value={printFilterMode}
+                    onChange={(e) => setPrintFilterMode(e.target.value as PrintFilterMode)}
+                    className="bg-white border border-slate-300 rounded-lg px-2 py-0.5 font-bold text-emerald-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="class">Sesuai Kelas ({activeStudent.kelas || '-'})</option>
+                    <option value="passed_only">Hanya yang Lulus</option>
+                    <option value="filled_only">Hanya yang Diisi / Diuji</option>
+                    <option value="all">Semua Materi (Master)</option>
+                  </select>
+                </div>
+
                 {/* Zoom Controls */}
                 <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-lg">
                   <button
@@ -676,7 +755,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* A4 Sheet Container */}
+            {/* Legal Sheet Container */}
             <div className="bg-slate-300/80 rounded-2xl p-6 sm:p-8 overflow-auto min-h-[650px] flex justify-center border border-slate-400/40">
               <div
                 style={{
@@ -690,6 +769,7 @@ export default function App() {
                   student={activeStudent}
                   categories={categories}
                   config={config}
+                  printFilterMode={printFilterMode}
                 />
               </div>
             </div>
@@ -712,6 +792,8 @@ export default function App() {
                 onChangeDefaultPenguji={setDefaultPenguji}
                 onUpdateRecord={handleUpdateRecord}
                 onBatchUpdateRecords={handleBatchUpdateRecords}
+                onToggleExcludeFromPrint={handleToggleExcludeFromPrint}
+                onBatchToggleExcludeFromPrint={handleBatchToggleExcludeFromPrint}
                 onOpenMateriManager={() => setIsMateriModalOpen(true)}
                 onOpenExaminerManager={() => setIsExaminerModalOpen(true)}
               />
@@ -762,6 +844,7 @@ export default function App() {
                     student={activeStudent}
                     categories={categories}
                     config={config}
+                    printFilterMode={printFilterMode}
                   />
                 </div>
               </div>
@@ -803,6 +886,7 @@ export default function App() {
             categories={categories}
             config={config}
             isPrinting={true}
+            printFilterMode={printFilterMode}
           />
         ))}
       </div>
@@ -838,6 +922,8 @@ export default function App() {
         isOpen={isMateriModalOpen}
         onClose={() => setIsMateriModalOpen(false)}
         categories={categories}
+        availableClasses={getAvailableClasses(students, categories)}
+        activeStudentClass={activeStudent?.kelas}
         onSaveCategories={(newCats) => {
           setCategories(newCats);
           showToast('Kategori dan butir hafalan berhasil diperbarui!');

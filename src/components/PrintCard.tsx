@@ -1,6 +1,7 @@
 import React from 'react';
-import { HafalanCategory, SchoolConfig, Student } from '../types';
+import { HafalanCategory, PrintFilterMode, SchoolConfig, Student } from '../types';
 import { SchoolLogo } from './SchoolLogo';
+import { filterCategoriesForStudent } from '../utils/hafalanFilter';
 
 interface PrintCardProps {
   student: Student;
@@ -8,6 +9,7 @@ interface PrintCardProps {
   config: SchoolConfig;
   className?: string;
   isPrinting?: boolean;
+  printFilterMode?: PrintFilterMode;
 }
 
 export const PrintCard: React.FC<PrintCardProps> = ({
@@ -16,6 +18,7 @@ export const PrintCard: React.FC<PrintCardProps> = ({
   config,
   className = '',
   isPrinting = false,
+  printFilterMode,
 }) => {
   if (!student) {
     return (
@@ -26,6 +29,9 @@ export const PrintCard: React.FC<PrintCardProps> = ({
   }
 
   const records = student.records || {};
+  const activeFilterMode = printFilterMode || config.printFilterMode || 'class';
+  const displayCategories = filterCategoriesForStudent(categories, student, activeFilterMode);
+
   return (
     <div
       className={`print-card bg-white text-black font-sans box-border mx-auto relative ${className}`}
@@ -164,90 +170,105 @@ export const PrintCard: React.FC<PrintCardProps> = ({
           </tr>
         </thead>
         <tbody>
-          {categories.map((category) => (
-            <React.Fragment key={category.id}>
-              {/* Category Header Row */}
-              <tr style={{ backgroundColor: '#c2e399' }}>
-                <td
-                  className="text-center font-bold py-0.5 text-black"
-                  style={{
-                    border: '1px solid #5993de',
-                  }}
-                >
-                  {category.code}
-                </td>
-                <td
-                  className="font-bold px-2 py-0.5 text-left uppercase text-black"
-                  style={{
-                    border: '1px solid #5993de',
-                  }}
-                >
-                  {category.name}
-                </td>
-                {/* Empty cells with same light green background matching the PDF */}
-                <td style={{ border: '1px solid #5993de' }}>&nbsp;</td>
-                <td style={{ border: '1px solid #5993de' }}>&nbsp;</td>
-                <td style={{ border: '1px solid #5993de' }}>&nbsp;</td>
-              </tr>
-
-              {/* Items in Category */}
-              {category.items.map((item, itemIdx) => {
-                const record = records[item.id] || {
-                  tanggal: '',
-                  penguji: '',
-                  keterangan: '',
-                };
-
-                return (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-slate-50 transition-colors"
+          {displayCategories.length === 0 ? (
+            <tr>
+              <td
+                colSpan={5}
+                className="text-center py-8 text-black font-medium"
+                style={{ border: '1px solid #5993de' }}
+              >
+                Tidak ada materi hafalan untuk Kelas {student.kelas || '-'}.
+                <div className="text-[8.5pt] text-slate-600 mt-1">
+                  (Anda dapat mengatur target kelas hafalan melalui menu Atur Materi & Kategori)
+                </div>
+              </td>
+            </tr>
+          ) : (
+            displayCategories.map((category) => (
+              <React.Fragment key={category.id}>
+                {/* Category Header Row */}
+                <tr style={{ backgroundColor: '#c2e399' }}>
+                  <td
+                    className="text-center font-bold py-0.5 text-black"
+                    style={{
+                      border: '1px solid #5993de',
+                    }}
                   >
-                    <td
-                      className="text-center font-semibold py-0.5 text-black"
-                      style={{
-                        border: '1px solid #5993de',
-                      }}
+                    {category.code}
+                  </td>
+                  <td
+                    className="font-bold px-2 py-0.5 text-left uppercase text-black"
+                    style={{
+                      border: '1px solid #5993de',
+                    }}
+                  >
+                    {category.name}
+                  </td>
+                  {/* Empty cells with same light green background matching the PDF */}
+                  <td style={{ border: '1px solid #5993de' }}>&nbsp;</td>
+                  <td style={{ border: '1px solid #5993de' }}>&nbsp;</td>
+                  <td style={{ border: '1px solid #5993de' }}>&nbsp;</td>
+                </tr>
+
+                {/* Items in Category */}
+                {category.items.map((item, itemIdx) => {
+                  const record = records[item.id] || {
+                    tanggal: '',
+                    penguji: '',
+                    keterangan: '',
+                  };
+
+                  return (
+                    <tr
+                      key={item.id}
+                      className="hover:bg-slate-50 transition-colors"
                     >
-                      {itemIdx + 1}
-                    </td>
-                    <td
-                      className="px-2 py-0.5 text-left text-black font-medium"
-                      style={{
-                        border: '1px solid #5993de',
-                      }}
-                    >
-                      {item.nama}
-                    </td>
-                    <td
-                      className="text-center py-0.5 text-black font-normal"
-                      style={{
-                        border: '1px solid #5993de',
-                      }}
-                    >
-                      {record.tanggal || ''}
-                    </td>
-                    <td
-                      className="text-center py-0.5 text-black font-normal lowercase"
-                      style={{
-                        border: '1px solid #5993de',
-                      }}
-                    >
-                      {record.penguji || ''}
-                    </td>
-                    <td
-                      className="text-center py-0.5 text-black font-semibold"
-                      style={{
-                        border: '1px solid #5993de',
-                      }}
-                    >
-                      {record.keterangan || ''}
-                    </td>
-                  </tr>
-                );
-              })}
-            </React.Fragment>
-          ))}
+                      <td
+                        className="text-center font-semibold py-0.5 text-black"
+                        style={{
+                          border: '1px solid #5993de',
+                        }}
+                      >
+                        {itemIdx + 1}
+                      </td>
+                      <td
+                        className="px-2 py-0.5 text-left text-black font-medium"
+                        style={{
+                          border: '1px solid #5993de',
+                        }}
+                      >
+                        {item.nama}
+                      </td>
+                      <td
+                        className="text-center py-0.5 text-black font-normal"
+                        style={{
+                          border: '1px solid #5993de',
+                        }}
+                      >
+                        {record.tanggal || ''}
+                      </td>
+                      <td
+                        className="text-center py-0.5 text-black font-normal lowercase"
+                        style={{
+                          border: '1px solid #5993de',
+                        }}
+                      >
+                        {record.penguji || ''}
+                      </td>
+                      <td
+                        className="text-center py-0.5 text-black font-semibold"
+                        style={{
+                          border: '1px solid #5993de',
+                        }}
+                      >
+                        {record.keterangan || ''}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </React.Fragment>
+            ))
+          )}
         </tbody>
       </table>
 
