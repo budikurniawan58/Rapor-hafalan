@@ -376,7 +376,9 @@ export const HafalanInputTable: React.FC<HafalanInputTableProps> = ({
                     };
                     const isPassed = record.keterangan === 'Lulus';
                     const isExcluded = Boolean(record.excludeFromPrint);
-                    const itemTarget = item.targetClasses?.[0];
+                    const itemTargets = (item.targetClasses || []).filter(
+                      (c) => c && c.toLowerCase() !== 'semua kelas'
+                    );
 
                     return (
                       <tr
@@ -398,9 +400,12 @@ export const HafalanInputTable: React.FC<HafalanInputTableProps> = ({
                         <td className="py-2.5 px-3 font-medium text-slate-800">
                           <div className="flex items-center gap-2">
                             <span>{item.nama}</span>
-                            {itemTarget && itemTarget !== 'Semua Kelas' && (
-                              <span className="text-[10px] bg-slate-100 text-slate-600 font-bold px-1.5 py-0.5 rounded border border-slate-200">
-                                {itemTarget}
+                            {itemTargets.length > 0 && (
+                              <span
+                                className="text-[10px] bg-slate-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded border border-slate-200"
+                                title={`Materi ini berlaku untuk Kelas: ${itemTargets.join(', ')}`}
+                              >
+                                {itemTargets.join(', ')}
                               </span>
                             )}
                           </div>

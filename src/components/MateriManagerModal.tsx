@@ -6,12 +6,12 @@ import {
   X,
   FolderPlus,
   Filter,
-  Layers,
   GraduationCap,
 } from 'lucide-react';
 import { HafalanCategory } from '../types';
 import { DEFAULT_CATEGORIES } from '../constants/defaultData';
 import { isApplicableToClass } from '../utils/hafalanFilter';
+import { MultiClassSelector } from './MultiClassSelector';
 
 interface MateriManagerModalProps {
   isOpen: boolean;
@@ -33,10 +33,17 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
   const [localCategories, setLocalCategories] = useState<HafalanCategory[]>(categories);
   const [newCatCode, setNewCatCode] = useState('');
   const [newCatName, setNewCatName] = useState('');
-  const [newCatClass, setNewCatClass] = useState('Semua Kelas');
+  const [newCatClasses, setNewCatClasses] = useState<string[]>(['Semua Kelas']);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newItemNameByCat, setNewItemNameByCat] = useState<Record<string, string>>({});
-  const [newItemClassByCat, setNewItemClassByCat] = useState<Record<string, string>>({});
+  const [newItemClassesByCat, setNewItemClassesByCat] = useState<Record<string, string[]>>({});
+
+  // Dynamic class list allowing user-added classes
+  const [classList, setClassList] = useState<string[]>(() => {
+    return Array.from(
+      new Set(['Semua Kelas', ...availableClasses, '1.1', '2.1', '3.1'])
+    );
+  });
 
   // Class filter inside the manager modal: 'all', or a specific class like '2.1'
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('all');
@@ -45,24 +52,34 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
   React.useEffect(() => {
     if (isOpen) {
       setLocalCategories(JSON.parse(JSON.stringify(categories)));
-      if (activeStudentClass) {
-        setSelectedClassFilter('all'); // Show all by default so user sees everything, or can filter
-      }
+      setClassList((prev) =>
+        Array.from(new Set([...prev, ...availableClasses, '1.1', '2.1', '3.1']))
+      );
+      setSelectedClassFilter('all');
     }
-  }, [isOpen, categories, activeStudentClass]);
+  }, [isOpen, categories, availableClasses]);
 
   if (!isOpen) return null;
 
-  // Combine unique classes for selection
-  const allClassOptions = Array.from(
-    new Set(['Semua Kelas', ...availableClasses, '1.1', '2.1', '3.1'])
-  );
+  const handleAddNewClassOption = (newCls: string) => {
+    if (!newCls.trim()) return;
+    const clean = newCls.trim();
+    setClassList((prev) => {
+      if (prev.includes(clean)) return prev;
+      return [...prev, clean];
+    });
+  };
 
   const handleAddItem = (catId: string) => {
     const itemName = newItemNameByCat[catId]?.trim();
     if (!itemName) return;
 
-    const targetClass = newItemClassByCat[catId] || (selectedClassFilter !== 'all' ? selectedClassFilter : 'Semua Kelas');
+    // Use selected classes for this category or current class filter
+    let targetClasses = newItemClassesByCat[catId];
+    if (!targetClasses || targetClasses.length === 0) {
+      targetClasses =
+        selectedClassFilter !== 'all' ? [selectedClassFilter] : ['Semua Kelas'];
+    }
 
     const updated = localCategories.map((cat) => {
       if (cat.id === catId) {
@@ -73,7 +90,7 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
             {
               id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
               nama: itemName,
-              targetClasses: targetClass === 'Semua Kelas' ? ['Semua Kelas'] : [targetClass],
+              targetClasses,
             },
           ],
         };
@@ -83,6 +100,7 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
 
     setLocalCategories(updated);
     setNewItemNameByCat((prev) => ({ ...prev, [catId]: '' }));
+    setNewItemClassesByCat((prev) => ({ ...prev, [catId]: ['Semua Kelas'] }));
   };
 
   const handleDeleteItem = (catId: string, itemId: string) => {
@@ -113,14 +131,11 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
     setLocalCategories(updated);
   };
 
-  const handleUpdateItemClass = (catId: string, itemId: string, targetClass: string) => {
-    let finalClass = targetClass;
-    if (targetClass === '__custom__') {
-      const custom = window.prompt('Masukkan nama kelas baru (contoh: 3.2 atau 4.1):');
-      if (!custom || !custom.trim()) return;
-      finalClass = custom.trim();
-    }
-
+  const handleUpdateItemClasses = (
+    catId: string,
+    itemId: string,
+    newClasses: string[]
+  ) => {
     const updated = localCategories.map((cat) => {
       if (cat.id === catId) {
         return {
@@ -129,7 +144,7 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
             if (item.id === itemId) {
               return {
                 ...item,
-                targetClasses: finalClass === 'Semua Kelas' ? ['Semua Kelas'] : [finalClass],
+                targetClasses: newClasses,
               };
             }
             return item;
@@ -141,19 +156,12 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
     setLocalCategories(updated);
   };
 
-  const handleUpdateCategoryClass = (catId: string, targetClass: string) => {
-    let finalClass = targetClass;
-    if (targetClass === '__custom__') {
-      const custom = window.prompt('Masukkan nama kelas baru (contoh: 3.2 atau 4.1):');
-      if (!custom || !custom.trim()) return;
-      finalClass = custom.trim();
-    }
-
+  const handleUpdateCategoryClasses = (catId: string, newClasses: string[]) => {
     const updated = localCategories.map((cat) => {
       if (cat.id === catId) {
         return {
           ...cat,
-          targetClasses: finalClass === 'Semua Kelas' ? ['Semua Kelas'] : [finalClass],
+          targetClasses: newClasses,
         };
       }
       return cat;
@@ -173,13 +181,14 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
       id: `cat_${Date.now()}`,
       code: nextCode,
       name: newCatName.trim().toUpperCase(),
-      targetClasses: newCatClass === 'Semua Kelas' ? ['Semua Kelas'] : [newCatClass],
+      targetClasses: newCatClasses.length > 0 ? newCatClasses : ['Semua Kelas'],
       items: [],
     };
 
     setLocalCategories([...localCategories, newCat]);
     setNewCatName('');
     setNewCatCode('');
+    setNewCatClasses(['Semua Kelas']);
     setIsAddingCategory(false);
   };
 
@@ -192,7 +201,7 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
   const handleResetToDefault = () => {
     if (
       window.confirm(
-        'Kembalikan daftar materi hafalan ke format standar bawaan (lengkap dengan pembagian kelas)?'
+        'Kembalikan daftar materi hafalan ke format standar bawaan (lengkap dengan pembagian multi-kelas)?'
       )
     ) {
       setLocalCategories(JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)));
@@ -204,15 +213,19 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
     onClose();
   };
 
+  const specificClasses = classList.filter(
+    (c) => c && c.trim() && c.toLowerCase() !== 'semua kelas'
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden border border-slate-200">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Kelola Kategori & Materi Hafalan</h2>
             <p className="text-xs text-slate-500">
-              Atur materi hafalan yang berbeda untuk setiap kelas dan yang dicetak pada kartu
+              Satu hafalan dapat digunakan untuk lebih dari 1 kelas tanpa menghapus kelas sebelumnya
             </p>
           </div>
           <button
@@ -224,26 +237,24 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+        <div className="p-6 space-y-5 overflow-y-auto flex-1">
           {/* Controls & Filter Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
             {/* Filter by class selector */}
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-emerald-700" />
-              <span className="text-xs font-bold text-slate-700">Tampilkan Materi:</span>
+              <span className="text-xs font-bold text-slate-700">Filter Tampilan:</span>
               <select
                 value={selectedClassFilter}
                 onChange={(e) => setSelectedClassFilter(e.target.value)}
                 className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-300 rounded-lg text-emerald-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
                 <option value="all">Semua Materi (Semua Kelas)</option>
-                {allClassOptions
-                  .filter((c) => c !== 'Semua Kelas')
-                  .map((cls) => (
-                    <option key={cls} value={cls}>
-                      Khusus Kelas {cls}
-                    </option>
-                  ))}
+                {specificClasses.map((cls) => (
+                  <option key={cls} value={cls}>
+                    Hanya Kelas {cls}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -284,9 +295,9 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
                 <div className="sm:col-span-2">
-                  <label className="block text-slate-600 mb-1 font-bold">Kode (A, B, C..)</label>
+                  <label className="block text-slate-600 mb-1 font-bold">Kode</label>
                   <input
                     type="text"
                     placeholder="G"
@@ -307,18 +318,15 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
                   />
                 </div>
                 <div className="sm:col-span-4">
-                  <label className="block text-slate-600 mb-1 font-bold">Berlaku Untuk Kelas</label>
-                  <select
-                    value={newCatClass}
-                    onChange={(e) => setNewCatClass(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl font-semibold focus:outline-none cursor-pointer"
-                  >
-                    {allClassOptions.map((cls) => (
-                      <option key={cls} value={cls}>
-                        {cls === 'Semua Kelas' ? 'Semua Kelas' : `Kelas ${cls}`}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-slate-600 mb-1 font-bold">Target Kelas</label>
+                  <MultiClassSelector
+                    selectedClasses={newCatClasses}
+                    availableClasses={classList}
+                    onChange={setNewCatClasses}
+                    onAddNewClassOption={handleAddNewClassOption}
+                    size="sm"
+                    className="w-full"
+                  />
                 </div>
               </div>
 
@@ -357,15 +365,13 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
                 return null;
               }
 
-              const catTargetClass = category.targetClasses?.[0] || 'Semua Kelas';
-
               return (
                 <div
                   key={category.id}
-                  className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs"
+                  className="border border-slate-200 rounded-2xl overflow-visible shadow-2xs"
                 >
                   {/* Category Header */}
-                  <div className="bg-emerald-50 px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-emerald-200">
+                  <div className="bg-emerald-50 px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-emerald-200 rounded-t-2xl">
                     <div className="flex items-center gap-2 flex-1 min-w-[240px]">
                       <span className="w-7 h-7 rounded-xl bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shadow-2xs">
                         {category.code}
@@ -387,21 +393,18 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Category target class badge */}
-                      <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-white/80 px-2 py-1 rounded-lg border border-emerald-200">
-                        <span>Target:</span>
-                        <select
-                          value={catTargetClass}
-                          onChange={(e) => handleUpdateCategoryClass(category.id, e.target.value)}
-                          className="font-bold text-emerald-800 bg-transparent border-none focus:outline-none cursor-pointer"
-                        >
-                          {allClassOptions.map((cls) => (
-                            <option key={cls} value={cls}>
-                              {cls === 'Semua Kelas' ? 'Semua Kelas' : `Kelas ${cls}`}
-                            </option>
-                          ))}
-                          <option value="__custom__">+ Kelas Lain...</option>
-                        </select>
+                      {/* Category Multi-Class Selector */}
+                      <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-white/80 px-2 py-1 rounded-xl border border-emerald-200">
+                        <span className="text-[11px] font-semibold">Target:</span>
+                        <MultiClassSelector
+                          selectedClasses={category.targetClasses || ['Semua Kelas']}
+                          availableClasses={classList}
+                          onChange={(newClasses) =>
+                            handleUpdateCategoryClasses(category.id, newClasses)
+                          }
+                          onAddNewClassOption={handleAddNewClassOption}
+                          size="xs"
+                        />
                       </div>
 
                       <button
@@ -415,21 +418,19 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
                   </div>
 
                   {/* Items in this Category */}
-                  <div className="p-3.5 space-y-2 bg-white">
+                  <div className="p-3.5 space-y-2 bg-white rounded-b-2xl">
                     {visibleItems.length === 0 ? (
                       <div className="text-xs text-slate-400 py-3 text-center italic">
                         {selectedClassFilter !== 'all'
-                          ? `Tidak ada butir hafalan khusus Kelas ${selectedClassFilter} di kategori ini.`
+                          ? `Tidak ada butir hafalan untuk Kelas ${selectedClassFilter} di kategori ini.`
                           : 'Belum ada materi hafalan di kategori ini.'}
                       </div>
                     ) : (
                       visibleItems.map((item, idx) => {
-                        const itemClass = item.targetClasses?.[0] || 'Semua Kelas';
-
                         return (
                           <div
                             key={item.id}
-                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-slate-50 border border-slate-100 group transition-colors"
+                            className="flex flex-wrap sm:flex-nowrap items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-slate-50 border border-slate-100 group transition-colors"
                           >
                             <span className="w-6 text-center text-xs font-semibold text-slate-400">
                               {idx + 1}.
@@ -442,30 +443,20 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
                               onChange={(e) =>
                                 handleUpdateItem(category.id, item.id, e.target.value)
                               }
-                              className="flex-1 text-xs py-1 px-2.5 border border-slate-200 rounded-lg focus:bg-white focus:border-emerald-500 focus:outline-none"
+                              className="flex-1 text-xs py-1 px-2.5 border border-slate-200 rounded-lg focus:bg-white focus:border-emerald-500 focus:outline-none min-w-[200px]"
                             />
 
-                            {/* Item Class Selector (Requested Feature: Different hafalan per class) */}
+                            {/* Multi-Class Selector for each item (User Request: Can select >1 class without losing previous) */}
                             <div className="flex items-center gap-1 flex-shrink-0">
-                              <select
-                                value={itemClass}
-                                onChange={(e) =>
-                                  handleUpdateItemClass(category.id, item.id, e.target.value)
+                              <MultiClassSelector
+                                selectedClasses={item.targetClasses || ['Semua Kelas']}
+                                availableClasses={classList}
+                                onChange={(newClasses) =>
+                                  handleUpdateItemClasses(category.id, item.id, newClasses)
                                 }
-                                className={`text-[11px] font-bold px-2 py-1 rounded-lg border transition-colors cursor-pointer focus:outline-none ${
-                                  itemClass === 'Semua Kelas'
-                                    ? 'bg-slate-100 text-slate-700 border-slate-200'
-                                    : 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                                }`}
-                                title="Atur materi ini untuk kelas berapa"
-                              >
-                                {allClassOptions.map((cls) => (
-                                  <option key={cls} value={cls}>
-                                    {cls === 'Semua Kelas' ? 'Semua Kelas' : `Kelas ${cls}`}
-                                  </option>
-                                ))}
-                                <option value="__custom__">+ Kelas Lain...</option>
-                              </select>
+                                onAddNewClassOption={handleAddNewClassOption}
+                                size="xs"
+                              />
                             </div>
 
                             <button
@@ -481,7 +472,7 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
                     )}
 
                     {/* Add Item to Category input */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100 mt-2">
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 pt-2 border-t border-slate-100 mt-2">
                       <input
                         type="text"
                         placeholder={`+ Tambah butir hafalan baru...`}
@@ -498,30 +489,25 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
                             handleAddItem(category.id);
                           }
                         }}
-                        className="flex-1 text-xs py-1.5 px-3 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 focus:outline-none"
+                        className="flex-1 text-xs py-1.5 px-3 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 focus:outline-none min-w-[200px]"
                       />
 
-                      {/* Class selector for new item */}
-                      <select
-                        value={
-                          newItemClassByCat[category.id] ||
-                          (selectedClassFilter !== 'all' ? selectedClassFilter : 'Semua Kelas')
+                      {/* Multi-Class selector for new item */}
+                      <MultiClassSelector
+                        selectedClasses={
+                          newItemClassesByCat[category.id] ||
+                          (selectedClassFilter !== 'all' ? [selectedClassFilter] : ['Semua Kelas'])
                         }
-                        onChange={(e) =>
-                          setNewItemClassByCat({
-                            ...newItemClassByCat,
-                            [category.id]: e.target.value,
+                        availableClasses={classList}
+                        onChange={(classes) =>
+                          setNewItemClassesByCat({
+                            ...newItemClassesByCat,
+                            [category.id]: classes,
                           })
                         }
-                        className="text-xs font-semibold px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none cursor-pointer"
-                        title="Pilih kelas untuk materi baru ini"
-                      >
-                        {allClassOptions.map((cls) => (
-                          <option key={cls} value={cls}>
-                            {cls === 'Semua Kelas' ? 'Semua Kelas' : `Kelas ${cls}`}
-                          </option>
-                        ))}
-                      </select>
+                        onAddNewClassOption={handleAddNewClassOption}
+                        size="xs"
+                      />
 
                       <button
                         type="button"
@@ -540,13 +526,15 @@ export const MateriManagerModal: React.FC<MateriManagerModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-slate-500 flex items-center gap-1.5">
-            <GraduationCap className="w-4 h-4 text-emerald-600" />
-            <span>Materi yang ditandai dengan kelas tertentu hanya akan muncul pada kartu siswa kelas tersebut.</span>
+            <GraduationCap className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            <span>
+              Anda dapat mencentang beberapa kelas sekaligus pada satu materi hafalan. Kelas yang sudah dipilih tidak akan hilang.
+            </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-auto">
             <button
               onClick={onClose}
               className="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl cursor-pointer"
