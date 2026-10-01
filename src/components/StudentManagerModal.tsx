@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit2, User, Search, Check, X } from 'lucide-react';
+import { Plus, Trash2, Edit2, Search, Check, X } from 'lucide-react';
 import { Student } from '../types';
 
 interface StudentManagerModalProps {

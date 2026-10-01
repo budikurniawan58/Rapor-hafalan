@@ -3,6 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function () {
+        try {
+          var _origFetch = typeof window !== 'undefined' && window.fetch ? window.fetch.bind(window) : null;
+          var _currFetch = _origFetch;
+          Object.defineProperty(window, 'fetch', {
+            get: function () {
+              return _currFetch;
+            },
+            set: function (newFetch) {
+              _currFetch = newFetch;
+            },
+            configurable: true,
+            enumerable: true,
+          });
+        } catch (e) {
+          // Fail silently if not configurable
+        }
+      })();
+    </script>
     <title>Kartu Hafalan Siswa MI Raudlatul Hikmah</title>
     <meta name="description" content="Aplikasi pencatatan, penilaian, dan cetak kartu hafalan siswa Madrasah Ibtidaiyah Raudlatul Hikmah dengan format cetak resmi." />
     <meta property="og:title" content="Kartu Hafalan Siswa MI Raudlatul Hikmah" />

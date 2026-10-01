@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Settings, Upload, RotateCcw, Download, FileUp, X, Check } from 'lucide-react';
+import { Settings, Upload, RotateCcw, Download, FileUp, X } from 'lucide-react';
 import { SchoolConfig } from '../types';
 import { DEFAULT_SCHOOL_CONFIG } from '../constants/defaultData';
 import { SchoolLogo } from './SchoolLogo';

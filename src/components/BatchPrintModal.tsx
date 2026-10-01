@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Printer, CheckSquare, Square, X, Users } from 'lucide-react';
-import { Student, HafalanCategory, SchoolConfig } from '../types';
+import { Printer, CheckSquare, Square, X } from 'lucide-react';
+import { Student } from '../types';
 
 interface BatchPrintModalProps {
   isOpen: boolean;

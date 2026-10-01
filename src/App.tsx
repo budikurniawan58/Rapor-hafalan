@@ -4,18 +4,12 @@ import {
   Users,
   BookOpen,
   Settings,
-  Sparkles,
   ChevronDown,
-  Plus,
-  Eye,
-  FileSpreadsheet,
   Download,
-  Upload,
   CheckCircle,
   Layers,
   ZoomIn,
   ZoomOut,
-  Maximize2,
 } from 'lucide-react';
 
 import { HafalanCategory, SchoolConfig, Student } from './types';
@@ -93,6 +87,15 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
   }, [config]);
+
+  // Clean up batch print state after print dialog closes
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      setBatchPrintStudentIds([]);
+    };
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => window.removeEventListener('afterprint', handleAfterPrint);
+  }, []);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -190,7 +193,9 @@ export default function App() {
   // Print handlers
   const handlePrintActiveStudent = () => {
     setBatchPrintStudentIds([]);
-    window.print();
+    setTimeout(() => {
+      window.print();
+    }, 60);
   };
 
   const handleTriggerBatchPrint = (selectedIds: string[]) => {
@@ -249,7 +254,7 @@ export default function App() {
   const studentsToPrint =
     batchPrintStudentIds.length > 0
       ? students.filter((s) => batchPrintStudentIds.includes(s.id))
-      : [activeStudent];
+      : activeStudent ? [activeStudent] : [];
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
@@ -448,7 +453,6 @@ export default function App() {
               <HafalanInputTable
                 student={activeStudent}
                 categories={categories}
-                config={config}
                 onUpdateRecord={handleUpdateRecord}
                 onBatchUpdateRecords={handleBatchUpdateRecords}
                 onOpenMateriManager={() => setIsMateriModalOpen(true)}
@@ -539,7 +543,6 @@ export default function App() {
             <HafalanInputTable
               student={activeStudent}
               categories={categories}
-              config={config}
               onUpdateRecord={handleUpdateRecord}
               onBatchUpdateRecords={handleBatchUpdateRecords}
               onOpenMateriManager={() => setIsMateriModalOpen(true)}

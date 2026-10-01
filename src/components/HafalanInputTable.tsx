@@ -1,20 +1,14 @@
 import React, { useState } from 'react';
 import {
-  CheckCircle2,
-  Clock,
-  Sparkles,
-  Trash2,
   Calendar,
-  UserCheck,
   RotateCcw,
   Zap,
 } from 'lucide-react';
-import { HafalanCategory, Student, SchoolConfig } from '../types';
+import { HafalanCategory, Student } from '../types';
 
 interface HafalanInputTableProps {
   student: Student;
   categories: HafalanCategory[];
-  config: SchoolConfig;
   onUpdateRecord: (itemId: string, field: 'tanggal' | 'penguji' | 'keterangan', value: string) => void;
   onBatchUpdateRecords: (records: Record<string, { tanggal: string; penguji: string; keterangan: string }>) => void;
   onOpenMateriManager: () => void;
@@ -23,13 +17,11 @@ interface HafalanInputTableProps {
 export const HafalanInputTable: React.FC<HafalanInputTableProps> = ({
   student,
   categories,
-  config,
   onUpdateRecord,
   onBatchUpdateRecords,
   onOpenMateriManager,
 }) => {
   const [defaultPenguji, setDefaultPenguji] = useState('q');
-  const [selectedKeterangan, setSelectedKeterangan] = useState('Lulus');
 
   // Calculate statistics
   const allItems = categories.flatMap((cat) => cat.items);

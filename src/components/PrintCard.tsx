@@ -17,6 +17,15 @@ export const PrintCard: React.FC<PrintCardProps> = ({
   className = '',
   isPrinting = false,
 }) => {
+  if (!student) {
+    return (
+      <div className="p-8 text-center text-slate-400 bg-white">
+        Data siswa tidak ditemukan
+      </div>
+    );
+  }
+
+  const records = student.records || {};
   return (
     <div
       className={`print-card bg-white text-black font-sans box-border mx-auto relative ${className}`}
@@ -176,14 +185,14 @@ export const PrintCard: React.FC<PrintCardProps> = ({
                   {category.name}
                 </td>
                 {/* Empty cells with same light green background matching the PDF */}
-                <td style={{ border: '1px solid #5993de' }}></td>
-                <td style={{ border: '1px solid #5993de' }}></td>
-                <td style={{ border: '1px solid #5993de' }}></td>
+                <td style={{ border: '1px solid #5993de' }}>&nbsp;</td>
+                <td style={{ border: '1px solid #5993de' }}>&nbsp;</td>
+                <td style={{ border: '1px solid #5993de' }}>&nbsp;</td>
               </tr>
 
               {/* Items in Category */}
               {category.items.map((item, itemIdx) => {
-                const record = student.records[item.id] || {
+                const record = records[item.id] || {
                   tanggal: '',
                   penguji: '',
                   keterangan: '',
