@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit2, Search, Check, X } from 'lucide-react';
+import { Plus, Trash2, Edit2, Search, Check, X, FileSpreadsheet, Download } from 'lucide-react';
 import { Student } from '../types';
 
 interface StudentManagerModalProps {
@@ -11,6 +11,8 @@ interface StudentManagerModalProps {
   onAddStudent: (student: Omit<Student, 'id' | 'records'>) => void;
   onUpdateStudent: (id: string, updated: Partial<Student>) => void;
   onDeleteStudent: (id: string) => void;
+  onOpenExcelImport?: () => void;
+  onDownloadTemplate?: () => void;
 }
 
 export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
@@ -22,6 +24,8 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
   onAddStudent,
   onUpdateStudent,
   onDeleteStudent,
+  onOpenExcelImport,
+  onDownloadTemplate,
 }) => {
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -126,13 +130,40 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
               />
             </div>
             {!isAddingNew && !editingId && (
-              <button
-                onClick={startAddNew}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                Tambah Siswa Baru
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {onDownloadTemplate && (
+                  <button
+                    type="button"
+                    onClick={onDownloadTemplate}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition-colors cursor-pointer"
+                    title="Unduh format tabel Excel kosong untuk diisi"
+                  >
+                    <Download className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Template Excel</span>
+                  </button>
+                )}
+
+                {onOpenExcelImport && (
+                  <button
+                    type="button"
+                    onClick={onOpenExcelImport}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl border border-emerald-200 transition-colors shadow-2xs cursor-pointer"
+                    title="Unggah file Excel untuk memasukkan banyak data siswa sekaligus"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Impor Excel</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={startAddNew}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-semibold rounded-xl transition-colors shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Tambah Manual</span>
+                </button>
+              </div>
             )}
           </div>
 

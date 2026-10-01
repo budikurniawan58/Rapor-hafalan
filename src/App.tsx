@@ -15,6 +15,7 @@ import {
   Eye,
   Columns,
   UserCheck,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 import { HafalanCategory, SchoolConfig, Student } from './types';
@@ -30,7 +31,9 @@ import { MateriManagerModal } from './components/MateriManagerModal';
 import { SettingsModal } from './components/SettingsModal';
 import { BatchPrintModal } from './components/BatchPrintModal';
 import { ExaminerManagerModal } from './components/ExaminerManagerModal';
+import { ExcelImportModal } from './components/ExcelImportModal';
 import { SchoolLogo } from './components/SchoolLogo';
+import { downloadStudentExcelTemplate, ParsedStudentRow } from './utils/excelImport';
 
 const STORAGE_KEY_STUDENTS = 'kartu_hafalan_students_v1';
 const STORAGE_KEY_CATEGORIES = 'kartu_hafalan_categories_v1';
@@ -81,6 +84,7 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isBatchPrintModalOpen, setIsBatchPrintModalOpen] = useState(false);
   const [isExaminerModalOpen, setIsExaminerModalOpen] = useState(false);
+  const [isExcelImportModalOpen, setIsExcelImportModalOpen] = useState(false);
   const [batchPrintStudentIds, setBatchPrintStudentIds] = useState<string[]>([]);
 
   // Examiners list for dropdown
@@ -216,6 +220,35 @@ export default function App() {
       setActiveStudentId(remaining[0].id);
     }
     showToast('Data siswa telah dihapus.');
+  };
+
+  const handleBatchImportStudents = (
+    importedRows: ParsedStudentRow[],
+    replaceAll: boolean
+  ) => {
+    const newStudents: Student[] = importedRows.map((row, idx) => ({
+      id: `std_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+      name: row.name,
+      nis: row.nis,
+      nisn: row.nisn,
+      kelas: row.kelas,
+      tahunPelajaran: row.tahunPelajaran,
+      records: {},
+    }));
+
+    if (replaceAll) {
+      setStudents(newStudents);
+      if (newStudents.length > 0) {
+        setActiveStudentId(newStudents[0].id);
+      }
+      showToast(`Berhasil mengganti data dengan ${newStudents.length} siswa baru dari Excel!`);
+    } else {
+      setStudents((prev) => [...prev, ...newStudents]);
+      if (newStudents.length > 0) {
+        setActiveStudentId(newStudents[0].id);
+      }
+      showToast(`Berhasil menambahkan ${newStudents.length} siswa baru dari Excel!`);
+    }
   };
 
   // Print handlers
@@ -390,6 +423,17 @@ export default function App() {
 
                     <button
                       onClick={() => {
+                        setIsExcelImportModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 hover:bg-emerald-50/70 text-emerald-800 flex items-center gap-2.5 font-bold cursor-pointer"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                      <span>Impor Siswa dari Excel</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
                         setIsMateriModalOpen(true);
                         setIsMenuOpen(false);
                       }}
@@ -522,6 +566,15 @@ export default function App() {
               <span className="font-semibold text-slate-700">Kelas:</span> {activeStudent?.kelas || '-'} &nbsp;·&nbsp;
               <span className="font-semibold text-slate-700">NIS:</span> {activeStudent?.nis || '-'}
             </div>
+
+            <button
+              onClick={() => setIsExcelImportModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl border border-emerald-200 transition-colors shadow-2xs cursor-pointer"
+              title="Unggah file Excel untuk memasukkan data siswa secara otomatis"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Impor Excel</span>
+            </button>
 
             <button
               onClick={() => setIsStudentModalOpen(true)}
@@ -764,6 +817,21 @@ export default function App() {
         onAddStudent={handleAddStudent}
         onUpdateStudent={handleUpdateStudent}
         onDeleteStudent={handleDeleteStudent}
+        onOpenExcelImport={() => {
+          setIsStudentModalOpen(false);
+          setIsExcelImportModalOpen(true);
+        }}
+        onDownloadTemplate={() =>
+          downloadStudentExcelTemplate(activeStudent?.kelas || '2.1', config.academicYear)
+        }
+      />
+
+      <ExcelImportModal
+        isOpen={isExcelImportModalOpen}
+        onClose={() => setIsExcelImportModalOpen(false)}
+        defaultKelas={activeStudent?.kelas || '2.1'}
+        defaultTahunPelajaran={config.academicYear}
+        onImport={handleBatchImportStudents}
       />
 
       <MateriManagerModal
