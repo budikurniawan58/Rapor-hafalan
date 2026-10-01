@@ -389,7 +389,7 @@ export default function App() {
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-colors cursor-pointer"
             >
               <Printer className="w-4 h-4 text-slate-950" />
-              <span>Cetak Kartu (A4)</span>
+              <span>Cetak Kartu (Legal)</span>
             </button>
 
             {/* Menu Lainnya Button */}
@@ -631,7 +631,7 @@ export default function App() {
                   Pratinjau Kartu: <span className="text-emerald-800">{activeStudent.name}</span>
                 </div>
                 <span className="text-[11px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full">
-                  Format Resmi A4
+                  Format Kertas Legal
                 </span>
               </div>
 

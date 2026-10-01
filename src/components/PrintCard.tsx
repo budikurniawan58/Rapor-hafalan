@@ -30,9 +30,9 @@ export const PrintCard: React.FC<PrintCardProps> = ({
     <div
       className={`print-card bg-white text-black font-sans box-border mx-auto relative ${className}`}
       style={{
-        width: '210mm',
-        minHeight: isPrinting ? 'auto' : '297mm',
-        padding: '14mm 16mm 12mm 16mm',
+        width: '215.9mm',
+        minHeight: isPrinting ? 'auto' : '355.6mm',
+        padding: '14mm 16mm 14mm 16mm',
       }}
     >
       {/* HEADER SECTION */}
