@@ -23,6 +23,10 @@ import {
   GraduationCap,
   X,
   Check,
+  Cloud,
+  LogIn,
+  LogOut,
+  RefreshCw,
 } from 'lucide-react';
 
 import { HafalanCategory, PrintFilterMode, SchoolConfig, Student } from './types';
@@ -42,6 +46,19 @@ import { ExcelImportModal } from './components/ExcelImportModal';
 import { SchoolLogo } from './components/SchoolLogo';
 import { downloadStudentExcelTemplate, ParsedStudentRow } from './utils/excelImport';
 import { getAvailableClasses } from './utils/hafalanFilter';
+import { auth, googleProvider, testConnection } from './firebase';
+import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import {
+  initializeFirestoreIfEmpty,
+  subscribeToStudents,
+  subscribeToCategories,
+  subscribeToSchoolConfig,
+  saveStudentToFirestore,
+  saveMultipleStudentsToFirestore,
+  deleteStudentFromFirestore,
+  saveCategoriesToFirestore,
+  saveSchoolConfigToFirestore,
+} from './services/firestoreService';
 
 const STORAGE_KEY_STUDENTS = 'kartu_hafalan_students_v1';
 const STORAGE_KEY_CATEGORIES = 'kartu_hafalan_categories_v1';
@@ -109,6 +126,90 @@ export default function App() {
   });
   const [defaultPenguji, setDefaultPenguji] = useState<string>('q');
   const [printFilterMode, setPrintFilterMode] = useState<PrintFilterMode>('class');
+
+  // Cloud Firestore Sync & User State
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
+
+  // Real-time Firestore synchronization on mount
+  useEffect(() => {
+    // 1. Listen to Auth changes
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+
+    // 2. Test connection & seed initial data to Firestore if empty
+    testConnection();
+    initializeFirestoreIfEmpty().catch((err) => {
+      console.warn('Initial Firestore seed check:', err);
+    });
+
+    // 3. Subscribe to real-time changes in students collection
+    const unsubStudents = subscribeToStudents(
+      (remoteStudents) => {
+        if (remoteStudents && remoteStudents.length > 0) {
+          setStudents(remoteStudents);
+          setIsCloudConnected(true);
+        }
+      },
+      (err) => {
+        console.warn('Students listener notice:', err);
+      }
+    );
+
+    // 4. Subscribe to real-time changes in categories collection
+    const unsubCategories = subscribeToCategories(
+      (remoteCats) => {
+        if (remoteCats && remoteCats.length > 0) {
+          setCategories(remoteCats);
+        }
+      },
+      (err) => {
+        console.warn('Categories listener notice:', err);
+      }
+    );
+
+    // 5. Subscribe to real-time changes in school config
+    const unsubConfig = subscribeToSchoolConfig(
+      (remoteConfig) => {
+        if (remoteConfig) {
+          setConfig(remoteConfig);
+          if (remoteConfig.examiners && remoteConfig.examiners.length > 0) {
+            setExaminers(remoteConfig.examiners);
+          }
+        }
+      },
+      (err) => {
+        console.warn('Config listener notice:', err);
+      }
+    );
+
+    return () => {
+      unsubAuth();
+      unsubStudents();
+      unsubCategories();
+      unsubConfig();
+    };
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      showToast('Berhasil masuk dengan akun Google!');
+    } catch (err: unknown) {
+      console.error('Google Sign In error:', err);
+      showToast('Gagal masuk dengan Google.');
+    }
+  };
+
+  const handleGoogleLogout = async () => {
+    try {
+      await signOut(auth);
+      showToast('Berhasil keluar.');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
 
   // Student class filter & search
   const [studentClassFilter, setStudentClassFilter] = useState<string>('all');
@@ -181,61 +282,53 @@ export default function App() {
 
   const handleUpdateExaminers = (updated: string[]) => {
     setExaminers(updated);
-    setConfig((prev) => ({ ...prev, examiners: updated }));
-    showToast('Daftar nama penguji berhasil diperbarui!');
+    const updatedConfig = { ...config, examiners: updated };
+    setConfig(updatedConfig);
+    saveSchoolConfigToFirestore(updatedConfig).catch((err) => console.error(err));
+    showToast('Daftar nama penguji berhasil diperbarui di Cloud!');
   };
 
   const handleToggleExcludeFromPrint = (itemId: string, exclude: boolean) => {
     if (!activeStudent) return;
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id === activeStudent.id) {
-          const currentRecord = s.records[itemId] || {
-            tanggal: '',
-            penguji: '',
-            keterangan: '',
-          };
-          return {
-            ...s,
-            records: {
-              ...s.records,
-              [itemId]: {
-                ...currentRecord,
-                excludeFromPrint: exclude,
-              },
-            },
-          };
-        }
-        return s;
-      })
-    );
+    const currentRecord = activeStudent.records[itemId] || {
+      tanggal: '',
+      penguji: '',
+      keterangan: '',
+    };
+    const updatedStudent: Student = {
+      ...activeStudent,
+      records: {
+        ...activeStudent.records,
+        [itemId]: {
+          ...currentRecord,
+          excludeFromPrint: exclude,
+        },
+      },
+    };
+    setStudents((prev) => prev.map((s) => (s.id === activeStudent.id ? updatedStudent : s)));
+    saveStudentToFirestore(updatedStudent).catch((err) => console.error(err));
   };
 
   const handleBatchToggleExcludeFromPrint = (itemIds: string[], exclude: boolean) => {
     if (!activeStudent) return;
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id === activeStudent.id) {
-          const updatedRecords = { ...s.records };
-          itemIds.forEach((id) => {
-            const currentRecord = updatedRecords[id] || {
-              tanggal: '',
-              penguji: '',
-              keterangan: '',
-            };
-            updatedRecords[id] = {
-              ...currentRecord,
-              excludeFromPrint: exclude,
-            };
-          });
-          return {
-            ...s,
-            records: updatedRecords,
-          };
-        }
-        return s;
-      })
-    );
+    const updatedRecords = { ...activeStudent.records };
+    itemIds.forEach((id) => {
+      const currentRecord = updatedRecords[id] || {
+        tanggal: '',
+        penguji: '',
+        keterangan: '',
+      };
+      updatedRecords[id] = {
+        ...currentRecord,
+        excludeFromPrint: exclude,
+      };
+    });
+    const updatedStudent: Student = {
+      ...activeStudent,
+      records: updatedRecords,
+    };
+    setStudents((prev) => prev.map((s) => (s.id === activeStudent.id ? updatedStudent : s)));
+    saveStudentToFirestore(updatedStudent).catch((err) => console.error(err));
     showToast(
       exclude
         ? 'Materi ditandai untuk tidak dicetak.'
@@ -243,7 +336,7 @@ export default function App() {
     );
   };
 
-  // Sync with localStorage
+  // Sync with localStorage as fast offline fallback
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
   }, [students]);
@@ -280,28 +373,23 @@ export default function App() {
     value: string
   ) => {
     if (!activeStudent) return;
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id === activeStudent.id) {
-          const currentRecord = s.records[itemId] || {
-            tanggal: '',
-            penguji: '',
-            keterangan: '',
-          };
-          return {
-            ...s,
-            records: {
-              ...s.records,
-              [itemId]: {
-                ...currentRecord,
-                [field]: value,
-              },
-            },
-          };
-        }
-        return s;
-      })
-    );
+    const currentRecord = activeStudent.records[itemId] || {
+      tanggal: '',
+      penguji: '',
+      keterangan: '',
+    };
+    const updatedStudent: Student = {
+      ...activeStudent,
+      records: {
+        ...activeStudent.records,
+        [itemId]: {
+          ...currentRecord,
+          [field]: value,
+        },
+      },
+    };
+    setStudents((prev) => prev.map((s) => (s.id === activeStudent.id ? updatedStudent : s)));
+    saveStudentToFirestore(updatedStudent).catch((err) => console.error(err));
   };
 
   // Bulk update
@@ -309,21 +397,16 @@ export default function App() {
     newRecords: Record<string, { tanggal: string; penguji: string; keterangan: string }>
   ) => {
     if (!activeStudent) return;
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id === activeStudent.id) {
-          return {
-            ...s,
-            records: {
-              ...s.records,
-              ...newRecords,
-            },
-          };
-        }
-        return s;
-      })
-    );
-    showToast('Nilai hafalan berhasil diperbarui!');
+    const updatedStudent: Student = {
+      ...activeStudent,
+      records: {
+        ...activeStudent.records,
+        ...newRecords,
+      },
+    };
+    setStudents((prev) => prev.map((s) => (s.id === activeStudent.id ? updatedStudent : s)));
+    saveStudentToFirestore(updatedStudent).catch((err) => console.error(err));
+    showToast('Nilai hafalan tersimpan di Cloud Firestore!');
   };
 
   // Student actions
@@ -335,14 +418,17 @@ export default function App() {
     };
     setStudents((prev) => [...prev, newStudent]);
     setActiveStudentId(newStudent.id);
-    showToast(`Siswa "${data.name}" berhasil ditambahkan!`);
+    saveStudentToFirestore(newStudent).catch((err) => console.error(err));
+    showToast(`Siswa "${data.name}" tersimpan di Cloud Firestore!`);
   };
 
   const handleUpdateStudent = (id: string, updated: Partial<Student>) => {
-    setStudents((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, ...updated } : s))
-    );
-    showToast('Data siswa berhasil diperbarui!');
+    const target = students.find((s) => s.id === id);
+    if (!target) return;
+    const updatedStudent: Student = { ...target, ...updated };
+    setStudents((prev) => prev.map((s) => (s.id === id ? updatedStudent : s)));
+    saveStudentToFirestore(updatedStudent).catch((err) => console.error(err));
+    showToast('Data siswa berhasil diperbarui di Cloud!');
   };
 
   const handleDeleteStudent = (id: string) => {
@@ -355,10 +441,11 @@ export default function App() {
     if (activeStudentId === id) {
       setActiveStudentId(remaining[0].id);
     }
-    showToast('Data siswa telah dihapus.');
+    deleteStudentFromFirestore(id).catch((err) => console.error(err));
+    showToast('Data siswa telah dihapus dari Cloud.');
   };
 
-  const handleBatchImportStudents = (
+  const handleBatchImportStudents = async (
     importedRows: ParsedStudentRow[],
     replaceAll: boolean
   ) => {
@@ -373,17 +460,23 @@ export default function App() {
     }));
 
     if (replaceAll) {
+      // Remove existing from firestore
+      for (const s of students) {
+        deleteStudentFromFirestore(s.id).catch(() => {});
+      }
       setStudents(newStudents);
       if (newStudents.length > 0) {
         setActiveStudentId(newStudents[0].id);
       }
-      showToast(`Berhasil mengganti data dengan ${newStudents.length} siswa baru dari Excel!`);
+      saveMultipleStudentsToFirestore(newStudents).catch((err) => console.error(err));
+      showToast(`Berhasil mengganti data dengan ${newStudents.length} siswa baru di Cloud Firestore!`);
     } else {
       setStudents((prev) => [...prev, ...newStudents]);
       if (newStudents.length > 0) {
         setActiveStudentId(newStudents[0].id);
       }
-      showToast(`Berhasil menambahkan ${newStudents.length} siswa baru dari Excel!`);
+      saveMultipleStudentsToFirestore(newStudents).catch((err) => console.error(err));
+      showToast(`Berhasil menambahkan ${newStudents.length} siswa baru ke Cloud Firestore!`);
     }
   };
 
@@ -519,6 +612,52 @@ export default function App() {
 
           {/* Header Action Buttons */}
           <div className="flex items-center gap-2">
+            {/* Cloud Sync Status Indicator */}
+            <div
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/70 border border-emerald-800 text-[11px] text-emerald-200"
+              title="Data tersinkron otomatis antar guru dan perangkat via Cloud Firestore"
+            >
+              <span className={`w-2 h-2 rounded-full ${isCloudConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              <Cloud className="w-3.5 h-3.5 text-emerald-300" />
+              <span>{isCloudConnected ? 'Sinkron Cloud Aktif' : 'Menghubungkan Cloud...'}</span>
+            </div>
+
+            {/* Google Account Profile / Sign In */}
+            {currentUser ? (
+              <div className="flex items-center gap-1.5 bg-emerald-950/80 pl-2 pr-1.5 py-1 rounded-xl border border-emerald-800 text-xs">
+                {currentUser.photoURL ? (
+                  <img
+                    src={currentUser.photoURL}
+                    alt={currentUser.displayName || 'Guru'}
+                    className="w-5 h-5 rounded-full object-cover"
+                  />
+                ) : (
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-300" />
+                )}
+                <span className="text-[11px] font-semibold max-w-[80px] sm:max-w-[110px] truncate text-emerald-100">
+                  {currentUser.displayName || currentUser.email?.split('@')[0] || 'Guru'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleGoogleLogout}
+                  title="Keluar dari akun Google"
+                  className="p-1 hover:bg-emerald-800 rounded-lg text-emerald-300 hover:text-white transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl border border-white/20 transition-colors cursor-pointer"
+                title="Masuk dengan akun Google agar identitas guru tercatat"
+              >
+                <LogIn className="w-3.5 h-3.5 text-amber-300" />
+                <span>Masuk Google</span>
+              </button>
+            )}
+
             {/* Primary Print Button */}
             <button
               onClick={handlePrintActiveStudent}

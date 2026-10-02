@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isValidStudent(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.kelas is string && data.kelas.size() > 0 && data.kelas.size() <= 50;
+    }
+
+    function isValidCategory(data) {
+      return data.code is string && data.code.size() > 0 && data.code.size() <= 10 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200;
+    }
+
+    function isValidConfig(data) {
+      return data.schoolName is string && data.schoolName.size() <= 300;
+    }
+
+    match /students/{studentId} {
+      allow read: if true;
+      allow create, update: if isValidId(studentId) && isValidStudent(incoming());
+      allow delete: if isValidId(studentId);
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow create, update: if isValidId(categoryId) && isValidCategory(incoming());
+      allow delete: if isValidId(categoryId);
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow create, update: if isValidId(settingId) && isValidConfig(incoming());
+      allow delete: if isValidId(settingId);
+    }
+  }
+}

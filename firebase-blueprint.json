@@ -1,0 +1,150 @@
+{
+  "entities": {
+    "Student": {
+      "title": "Student",
+      "description": "Student biodata and evaluation records for hafalan",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique student identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of student"
+        },
+        "nis": {
+          "type": "string",
+          "description": "Student identification number"
+        },
+        "nisn": {
+          "type": "string",
+          "description": "National student identification number"
+        },
+        "kelas": {
+          "type": "string",
+          "description": "Student grade or class"
+        },
+        "tahunPelajaran": {
+          "type": "string",
+          "description": "Academic school year"
+        },
+        "records": {
+          "type": "object",
+          "description": "Map of hafalan items to evaluation record"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last updated ISO timestamp"
+        }
+      },
+      "required": ["name", "kelas"]
+    },
+    "HafalanCategory": {
+      "title": "HafalanCategory",
+      "description": "Category grouping hafalan items",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Category unique ID"
+        },
+        "code": {
+          "type": "string",
+          "description": "Category code e.g. A, B, C"
+        },
+        "name": {
+          "type": "string",
+          "description": "Category name uppercase"
+        },
+        "targetClasses": {
+          "type": "array",
+          "description": "List of classes this category applies to"
+        },
+        "items": {
+          "type": "array",
+          "description": "List of hafalan item objects"
+        },
+        "order": {
+          "type": "number",
+          "description": "Sorting order"
+        }
+      },
+      "required": ["code", "name"]
+    },
+    "SchoolConfig": {
+      "title": "SchoolConfig",
+      "description": "Madrasah settings, Wali Kelas signature, and examiners",
+      "type": "object",
+      "properties": {
+        "schoolName": {
+          "type": "string",
+          "description": "Name of school or madrasah"
+        },
+        "title": {
+          "type": "string",
+          "description": "Report title"
+        },
+        "academicYear": {
+          "type": "string",
+          "description": "Academic year"
+        },
+        "city": {
+          "type": "string",
+          "description": "City of school"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of card signing"
+        },
+        "examinerTitle": {
+          "type": "string",
+          "description": "Signature title for Wali Kelas"
+        },
+        "examinerName": {
+          "type": "string",
+          "description": "Name of Wali Kelas"
+        },
+        "examinerNip": {
+          "type": "string",
+          "description": "NIP of Wali Kelas"
+        },
+        "parentTitle": {
+          "type": "string",
+          "description": "Parent signature title"
+        },
+        "parentName": {
+          "type": "string",
+          "description": "Parent name"
+        },
+        "customLogoUrl": {
+          "type": "string",
+          "description": "Optional custom logo URL or data"
+        },
+        "examiners": {
+          "type": "array",
+          "description": "List of examiner names"
+        },
+        "waliKelasPerClass": {
+          "type": "object",
+          "description": "Map of class to Wali Kelas name and NIP"
+        }
+      },
+      "required": ["schoolName", "examinerName"]
+    }
+  },
+  "firestore": {
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Collection of all students and their hafalan evaluations"
+    },
+    "/categories/{categoryId}": {
+      "schema": "HafalanCategory",
+      "description": "Collection of all hafalan categories and curriculum items"
+    },
+    "/settings/{settingId}": {
+      "schema": "SchoolConfig",
+      "description": "School settings, signatures, and examiners"
+    }
+  }
+}
