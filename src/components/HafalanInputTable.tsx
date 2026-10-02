@@ -144,12 +144,12 @@ export const HafalanInputTable: React.FC<HafalanInputTableProps> = ({
   const toggleItemLulus = (itemId: string) => {
     const current = student.records[itemId];
     if (current?.keterangan === 'Lulus') {
-      // Toggle off
-      onUpdateRecord(itemId, 'keterangan', '');
+      // Toggle to Belum Lulus
+      onUpdateRecord(itemId, 'keterangan', 'Belum Lulus');
       onUpdateRecord(itemId, 'tanggal', '');
       onUpdateRecord(itemId, 'penguji', '');
     } else {
-      // Toggle on
+      // Toggle to Lulus
       const filledCount = Object.values(student.records).filter(
         (r) => r.keterangan === 'Lulus'
       ).length;
@@ -292,12 +292,21 @@ export const HafalanInputTable: React.FC<HafalanInputTableProps> = ({
             </button>
 
             <button
+              onClick={() => handlePrintAllToggle(false)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium rounded-xl border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+              title="Kosongkan semua centang agar Anda dapat memilih hafalan tertentu saja"
+            >
+              <Square className="w-3.5 h-3.5 text-slate-400" />
+              Hapus Semua Centang
+            </button>
+
+            <button
               onClick={handlePrintOnlyPassed}
               className="inline-flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-slate-50 text-emerald-800 font-semibold rounded-xl border border-emerald-200 shadow-2xs transition-colors cursor-pointer"
-              title="Hanya centang cetak untuk materi yang bernilai Lulus"
+              title="Hanya centang materi yang bernilai Lulus"
             >
               <Printer className="w-3.5 h-3.5 text-emerald-600" />
-              Hanya Cetak yang Lulus
+              Hanya Centang yang Lulus
             </button>
 
             <button
@@ -330,10 +339,28 @@ export const HafalanInputTable: React.FC<HafalanInputTableProps> = ({
               <th className="py-2.5 px-3 text-center w-36">Penguji</th>
               <th className="py-2.5 px-3 text-center w-32">Keterangan</th>
               <th
-                className="py-2.5 px-2 text-center w-20"
-                title="Centang jika hafalan ini ingin dimasukkan saat dicetak ke kartu"
+                className="py-2.5 px-2 text-center w-24"
+                title="Centang hafalan yang ingin dimunculkan saat dicetak (baik yang sudah lulus ataupun belum)"
               >
-                Cetak?
+                <div className="flex items-center justify-center gap-1">
+                  <span>Cetak?</span>
+                  <button
+                    type="button"
+                    onClick={() => handlePrintAllToggle(printedItemsCount < totalItems)}
+                    className="p-0.5 hover:bg-slate-200 rounded cursor-pointer transition-colors"
+                    title={
+                      printedItemsCount === totalItems
+                        ? 'Batal centang semua'
+                        : 'Centang semua materi ini'
+                    }
+                  >
+                    {printedItemsCount === totalItems ? (
+                      <CheckSquare className="w-3.5 h-3.5 text-emerald-700" />
+                    ) : (
+                      <Square className="w-3.5 h-3.5 text-slate-400" />
+                    )}
+                  </button>
+                </div>
               </th>
             </tr>
           </thead>
@@ -486,9 +513,8 @@ export const HafalanInputTable: React.FC<HafalanInputTableProps> = ({
                                 : 'bg-slate-50 text-slate-600 border-slate-200'
                             }`}
                           >
-                            <option value="">- Kosong -</option>
-                            <option value="Lulus">Lulus</option>
                             <option value="Belum Lulus">Belum Lulus</option>
+                            <option value="Lulus">Lulus</option>
                             <option value="Mengulang">Mengulang</option>
                             <option value="Mutqin">Mutqin</option>
                           </select>
@@ -500,8 +526,8 @@ export const HafalanInputTable: React.FC<HafalanInputTableProps> = ({
                             className="inline-flex items-center justify-center p-1 cursor-pointer hover:bg-slate-100 rounded-lg transition-colors"
                             title={
                               isExcluded
-                                ? 'Hafalan ini TIDAK akan dicetak pada kartu siswa'
-                                : 'Hafalan ini AKAN dicetak pada kartu siswa'
+                                ? 'Hafalan ini TIDAK dicetak di rapor'
+                                : 'Hafalan ini AKAN dicetak di rapor (Lulus / Belum Lulus)'
                             }
                           >
                             <input
@@ -529,7 +555,9 @@ export const HafalanInputTable: React.FC<HafalanInputTableProps> = ({
         <div className="flex flex-wrap items-center gap-3">
           <span className="flex items-center gap-1">
             <Printer className="w-3.5 h-3.5 text-emerald-700" />
-            <span>Kolom <strong>Cetak?</strong> menentukan apakah baris tersebut dimasukkan ke lembar cetak Legal.</span>
+            <span>
+              Kolom <strong>Cetak?</strong> menentukan hafalan yang dimunculkan di rapor (baik yang statusnya <strong>Lulus</strong> maupun <strong>Belum Lulus</strong>).
+            </span>
           </span>
           <button
             type="button"

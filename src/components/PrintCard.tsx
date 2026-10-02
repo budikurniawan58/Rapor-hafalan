@@ -218,6 +218,9 @@ export const PrintCard: React.FC<PrintCardProps> = ({
                     keterangan: '',
                   };
 
+                  const isLulus = (record.keterangan || '').trim().toLowerCase() === 'lulus';
+                  const displayKeterangan = record.keterangan?.trim() || 'Belum Lulus';
+
                   return (
                     <tr
                       key={item.id}
@@ -245,23 +248,24 @@ export const PrintCard: React.FC<PrintCardProps> = ({
                           border: '1px solid #5993de',
                         }}
                       >
-                        {record.tanggal || ''}
+                        {record.tanggal ? record.tanggal : '-'}
                       </td>
                       <td
-                        className="text-center py-0.5 text-black font-normal lowercase"
+                        className="text-center py-0.5 text-black font-normal"
                         style={{
                           border: '1px solid #5993de',
                         }}
                       >
-                        {record.penguji || ''}
+                        {record.penguji ? record.penguji : '-'}
                       </td>
                       <td
-                        className="text-center py-0.5 text-black font-semibold"
+                        className="text-center py-0.5 font-bold"
                         style={{
                           border: '1px solid #5993de',
+                          color: isLulus ? '#047857' : '#c2410c',
                         }}
                       >
-                        {record.keterangan || ''}
+                        {displayKeterangan}
                       </td>
                     </tr>
                   );
@@ -273,35 +277,50 @@ export const PrintCard: React.FC<PrintCardProps> = ({
       </table>
 
       {/* SIGNATURE SECTION */}
-      <div className="mt-6 text-[10pt] text-black">
-        {/* City & Date on the right side */}
-        <div className="flex justify-end mb-2">
-          <div className="w-72 text-left">
-            <span>{config.city}, {config.date}</span>
-          </div>
-        </div>
+      {(() => {
+        // Wali Kelas: check per-class override or fallback to examinerName
+        const classWali = config.waliKelasPerClass?.[student.kelas?.trim()];
+        const waliName = classWali?.name || config.examinerName || 'Fikra Abdillah Zaenal, S.S., S.Pd.';
+        const waliTitle = config.examinerTitle || 'Wali Kelas,';
+        const waliNip = classWali?.nip || config.examinerNip || '';
 
-        {/* Two Signature Columns */}
-        <div className="flex justify-between items-start">
-          {/* Left: Orang Tua / Wali Murid */}
-          <div className="w-64 text-left">
-            <p className="font-normal">Mengetahui,</p>
-            <p className="font-normal mb-16">{config.parentTitle}</p>
-            <p className="font-normal">
-              {config.parentName ? `( ${config.parentName} )` : '( .................................... )'}
-            </p>
-          </div>
+        return (
+          <div className="mt-6 text-[10pt] text-black">
+            {/* City & Date on the right side */}
+            <div className="flex justify-end mb-2">
+              <div className="w-72 text-left">
+                <span>{config.city}, {config.date}</span>
+              </div>
+            </div>
 
-          {/* Right: Guru Kelas / Penguji */}
-          <div className="w-72 text-left">
-            <p className="font-normal">&nbsp;</p>
-            <p className="font-normal mb-16">{config.examinerTitle}</p>
-            <p className="font-bold">
-              ( {config.examinerName} )
-            </p>
+            {/* Two Signature Columns */}
+            <div className="flex justify-between items-start">
+              {/* Left: Orang Tua / Wali Siswa */}
+              <div className="w-64 text-left">
+                <p className="font-normal">Mengetahui,</p>
+                <p className="font-normal mb-16">{config.parentTitle || 'Orang Tua / Wali Siswa,'}</p>
+                <p className="font-normal">
+                  {config.parentName ? `( ${config.parentName} )` : '( .................................... )'}
+                </p>
+              </div>
+
+              {/* Right: Wali Kelas (User Request: Tanda tangan wali kelas dengan penulisan huruf besar dan kecil terutama gelar) */}
+              <div className="w-72 text-left">
+                <p className="font-normal">&nbsp;</p>
+                <p className="font-normal mb-16">{waliTitle}</p>
+                <p className="font-bold underline" style={{ textTransform: 'none' }}>
+                  ( {waliName} )
+                </p>
+                {waliNip && (
+                  <p className="text-[9pt] mt-0.5 font-normal" style={{ textTransform: 'none' }}>
+                    NIP. {waliNip}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
     </div>
   );
 };

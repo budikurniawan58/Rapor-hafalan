@@ -192,12 +192,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                Jabatan Penguji / Penandatangan Kanan
+                Jabatan Penandatangan (Kanan)
               </label>
               <input
                 type="text"
-                value={config.examinerTitle}
+                value={config.examinerTitle || 'Wali Kelas,'}
                 onChange={(e) => onUpdateConfig({ ...config, examinerTitle: e.target.value })}
+                placeholder="Contoh: Wali Kelas,"
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:border-emerald-500 focus:outline-none"
               />
             </div>
@@ -205,52 +206,119 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="font-bold text-slate-700">
-                  Nama Lengkap & Gelar Guru/Penguji
+                  Nama Lengkap & Gelar Wali Kelas
                 </label>
-                {onOpenExaminerManager && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onOpenExaminerManager();
-                    }}
-                    className="text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold underline cursor-pointer"
-                  >
-                    + Kelola Daftar Penguji
-                  </button>
-                )}
+                <span className="text-[10px] text-emerald-700 font-semibold">
+                  (Bisa huruf besar & kecil)
+                </span>
               </div>
               <input
                 type="text"
                 value={config.examinerName}
                 onChange={(e) => onUpdateConfig({ ...config, examinerName: e.target.value })}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold uppercase focus:border-emerald-500 focus:outline-none"
+                placeholder="Contoh: Fikra Abdillah Zaenal, S.S., S.Pd."
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 focus:outline-none"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Penulisan gelar diakomodasi huruf besar/kecil (contoh: S.Pd., S.Pd.I, Lc., M.Ag.)
+              </p>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                NIP / NUPTK Wali Kelas (Opsional)
+              </label>
+              <input
+                type="text"
+                value={config.examinerNip || ''}
+                onChange={(e) => onUpdateConfig({ ...config, examinerNip: e.target.value })}
+                placeholder="Contoh: 19880415 201201 1 002 (Kosongkan jika tidak ada)"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:border-emerald-500 focus:outline-none"
               />
             </div>
 
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                Jabatan Penandatangan Kiri
+                Jabatan Penandatangan (Kiri)
               </label>
               <input
                 type="text"
-                value={config.parentTitle}
+                value={config.parentTitle || 'Orang Tua / Wali Siswa,'}
                 onChange={(e) => onUpdateConfig({ ...config, parentTitle: e.target.value })}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:border-emerald-500 focus:outline-none"
               />
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="block font-bold text-slate-700 mb-1">
-                Nama Orang Tua / Wali (Opsional, kosongkan untuk titik-titik)
+                Nama Orang Tua / Wali Siswa (Opsional, kosongkan untuk titik-titik)
               </label>
               <input
                 type="text"
                 value={config.parentName}
                 onChange={(e) => onUpdateConfig({ ...config, parentName: e.target.value })}
-                placeholder="(Dibiarkan titik-titik tanda tangan)"
+                placeholder="(Dibiarkan kosong untuk titik-titik tanda tangan orang tua)"
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:border-emerald-500 focus:outline-none"
               />
+            </div>
+          </div>
+
+          {/* Per-Class Wali Kelas Section */}
+          <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-200 text-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-emerald-950 text-sm">
+                  Daftar Wali Kelas Masing-Masing Kelas
+                </h4>
+                <p className="text-slate-500 text-[11px]">
+                  Rapor tiap kelas otomatis mencantumkan nama wali kelasnya masing-masing
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {['1.1', '2.1', '5'].map((cls) => {
+                const current = config.waliKelasPerClass?.[cls] || { name: '', nip: '' };
+                return (
+                  <div key={cls} className="bg-white p-3 rounded-lg border border-emerald-200 space-y-2">
+                    <div className="font-bold text-emerald-900 border-b border-slate-100 pb-1 flex items-center justify-between">
+                      <span>Wali Kelas {cls}</span>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 mb-0.5">Nama & Gelar</label>
+                      <input
+                        type="text"
+                        value={current.name}
+                        onChange={(e) => {
+                          const updatedMap = {
+                            ...(config.waliKelasPerClass || {}),
+                            [cls]: { ...current, name: e.target.value },
+                          };
+                          onUpdateConfig({ ...config, waliKelasPerClass: updatedMap });
+                        }}
+                        placeholder={`Nama Wali Kelas ${cls}`}
+                        className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:border-emerald-500 focus:outline-none font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 mb-0.5">NIP (Opsional)</label>
+                      <input
+                        type="text"
+                        value={current.nip || ''}
+                        onChange={(e) => {
+                          const updatedMap = {
+                            ...(config.waliKelasPerClass || {}),
+                            [cls]: { ...current, nip: e.target.value },
+                          };
+                          onUpdateConfig({ ...config, waliKelasPerClass: updatedMap });
+                        }}
+                        placeholder="NIP Wali Kelas"
+                        className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

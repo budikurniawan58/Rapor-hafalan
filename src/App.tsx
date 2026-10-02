@@ -904,10 +904,10 @@ export default function App() {
                     onChange={(e) => setPrintFilterMode(e.target.value as PrintFilterMode)}
                     className="bg-white border border-slate-300 rounded-lg px-2 py-0.5 font-bold text-emerald-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
                   >
-                    <option value="class">Sesuai Kelas ({activeStudent.kelas || '-'})</option>
-                    <option value="passed_only">Hanya yang Lulus</option>
+                    <option value="class">Hafalan Dicentang (Lulus & Belum)</option>
+                    <option value="passed_only">Hanya yang Sudah Lulus</option>
                     <option value="filled_only">Hanya yang Diisi / Diuji</option>
-                    <option value="all">Semua Materi (Master)</option>
+                    <option value="all">Semua Materi Master</option>
                   </select>
                 </div>
 

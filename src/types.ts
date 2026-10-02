@@ -38,11 +38,13 @@ export interface SchoolConfig {
   academicYear: string;
   city: string;
   date: string;
-  examinerTitle: string;
-  examinerName: string;
+  examinerTitle: string; // e.g. "Wali Kelas,"
+  examinerName: string; // Nama Wali Kelas (huruf besar dan kecil dengan gelar)
+  examinerNip?: string; // NIP Wali Kelas (opsional)
   parentTitle: string;
   parentName: string;
   customLogoUrl: string | null;
   examiners?: string[];
   printFilterMode?: PrintFilterMode;
+  waliKelasPerClass?: Record<string, { name: string; nip?: string }>;
 }

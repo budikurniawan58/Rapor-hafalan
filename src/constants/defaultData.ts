@@ -6,17 +6,23 @@ export const DEFAULT_SCHOOL_CONFIG: SchoolConfig = {
   academicYear: '2026/2027',
   city: 'Tangerang Selatan',
   date: '16 Oktober 2026',
-  examinerTitle: 'Guru Kelas / Penguji,',
-  examinerName: 'FIKRA ABDILLAH ZAENAL, S.S, S.Pd',
+  examinerTitle: 'Wali Kelas,',
+  examinerName: 'Fikra Abdillah Zaenal, S.S., S.Pd.',
+  examinerNip: '',
   parentTitle: 'Orang Tua / Wali Murid,',
   parentName: '',
   customLogoUrl: null,
   examiners: [
     'q',
-    'FIKRA ABDILLAH ZAENAL, S.S, S.Pd',
+    'Fikra Abdillah Zaenal, S.S., S.Pd.',
     'Ustadzah Rahmawati, S.Pd.I',
-    'Ustadz Muhammad Ilham, Lc',
+    'Ustadz Muhammad Ilham, Lc.',
   ],
+  waliKelasPerClass: {
+    '2.1': { name: 'Fikra Abdillah Zaenal, S.S., S.Pd.', nip: '19880415 201201 1 002' },
+    '1.1': { name: 'Ustadzah Rahmawati, S.Pd.I', nip: '19920310 201502 2 001' },
+    '5': { name: 'Ustadz Muhammad Ilham, Lc., M.Ag.', nip: '19850720 201001 1 003' },
+  },
 };
 
 export const DEFAULT_CATEGORIES: HafalanCategory[] = [
