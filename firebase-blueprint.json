@@ -131,6 +131,47 @@
         }
       },
       "required": ["schoolName", "examinerName"]
+    },
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Admin and Wali Kelas user login accounts",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "User ID"
+        },
+        "username": {
+          "type": "string",
+          "description": "Unique login username lowercase"
+        },
+        "password": {
+          "type": "string",
+          "description": "Account password"
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of teacher or admin"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "walikelas"],
+          "description": "User role: admin or walikelas"
+        },
+        "assignedKelas": {
+          "type": "string",
+          "description": "Assigned class e.g. 2.1 or 'all' for admin"
+        },
+        "nip": {
+          "type": "string",
+          "description": "NIP or NUPTK of teacher"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["username", "password", "name", "role"]
     }
   },
   "firestore": {
@@ -145,6 +186,10 @@
     "/settings/{settingId}": {
       "schema": "SchoolConfig",
       "description": "School settings, signatures, and examiners"
+    },
+    "/users/{userId}": {
+      "schema": "UserAccount",
+      "description": "User accounts for admin and wali kelas authentication"
     }
   }
 }

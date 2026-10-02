@@ -24,17 +24,20 @@ import {
   X,
   Check,
   Cloud,
-  LogIn,
-  LogOut,
   RefreshCw,
+  LogOut,
+  Shield,
+  User as UserIcon,
+  KeyRound,
 } from 'lucide-react';
 
-import { HafalanCategory, PrintFilterMode, SchoolConfig, Student } from './types';
+import { HafalanCategory, PrintFilterMode, SchoolConfig, Student, UserAccount } from './types';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_SCHOOL_CONFIG,
   DEFAULT_STUDENTS,
 } from './constants/defaultData';
+import { DEFAULT_USERS } from './constants/defaultUsers';
 import { PrintCard } from './components/PrintCard';
 import { HafalanInputTable } from './components/HafalanInputTable';
 import { StudentManagerModal } from './components/StudentManagerModal';
@@ -43,21 +46,26 @@ import { SettingsModal } from './components/SettingsModal';
 import { BatchPrintModal } from './components/BatchPrintModal';
 import { ExaminerManagerModal } from './components/ExaminerManagerModal';
 import { ExcelImportModal } from './components/ExcelImportModal';
+import { UserManagerModal } from './components/UserManagerModal';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
+import { LoginScreen } from './components/LoginScreen';
 import { SchoolLogo } from './components/SchoolLogo';
 import { downloadStudentExcelTemplate, ParsedStudentRow } from './utils/excelImport';
 import { getAvailableClasses } from './utils/hafalanFilter';
-import { auth, googleProvider, testConnection } from './firebase';
-import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { testConnection } from './firebase';
 import {
   initializeFirestoreIfEmpty,
   subscribeToStudents,
   subscribeToCategories,
   subscribeToSchoolConfig,
+  subscribeToUsers,
   saveStudentToFirestore,
   saveMultipleStudentsToFirestore,
   deleteStudentFromFirestore,
   saveCategoriesToFirestore,
   saveSchoolConfigToFirestore,
+  saveUserToFirestore,
+  deleteUserFromFirestore,
 } from './services/firestoreService';
 
 const STORAGE_KEY_STUDENTS = 'kartu_hafalan_students_v1';
@@ -127,29 +135,49 @@ export default function App() {
   const [defaultPenguji, setDefaultPenguji] = useState<string>('q');
   const [printFilterMode, setPrintFilterMode] = useState<PrintFilterMode>('class');
 
-  // Cloud Firestore Sync & User State
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  // Cloud Firestore Sync State
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
 
-  // Real-time Firestore synchronization on mount
-  useEffect(() => {
-    // 1. Listen to Auth changes
-    const unsubAuth = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-    });
+  // User Authentication & Access Control
+  const [users, setUsers] = useState<UserAccount[]>(() => {
+    try {
+      const saved = localStorage.getItem('kartu_hafalan_users_v1');
+      return saved ? JSON.parse(saved) : DEFAULT_USERS;
+    } catch {
+      return DEFAULT_USERS;
+    }
+  });
 
-    // 2. Test connection & seed initial data to Firestore if empty
+  const [loggedInUser, setLoggedInUser] = useState<UserAccount | null>(() => {
+    try {
+      const saved = localStorage.getItem('kartu_hafalan_session_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [isUserManagerModalOpen, setIsUserManagerModalOpen] = useState(false);
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
+
+  // Real-time Firestore synchronization on mount (works across all gadgets)
+  useEffect(() => {
+    // 1. Test connection & seed initial data to Firestore if empty
     testConnection();
     initializeFirestoreIfEmpty().catch((err) => {
       console.warn('Initial Firestore seed check:', err);
     });
 
-    // 3. Subscribe to real-time changes in students collection
+    // 2. Subscribe to real-time changes in students collection
     const unsubStudents = subscribeToStudents(
       (remoteStudents) => {
         if (remoteStudents && remoteStudents.length > 0) {
           setStudents(remoteStudents);
           setIsCloudConnected(true);
+          setActiveStudentId((currentId) => {
+            const exists = remoteStudents.some((s) => s.id === currentId);
+            return exists ? currentId : remoteStudents[0].id;
+          });
         }
       },
       (err) => {
@@ -157,7 +185,7 @@ export default function App() {
       }
     );
 
-    // 4. Subscribe to real-time changes in categories collection
+    // 3. Subscribe to real-time changes in categories collection
     const unsubCategories = subscribeToCategories(
       (remoteCats) => {
         if (remoteCats && remoteCats.length > 0) {
@@ -169,7 +197,7 @@ export default function App() {
       }
     );
 
-    // 5. Subscribe to real-time changes in school config
+    // 4. Subscribe to real-time changes in school config
     const unsubConfig = subscribeToSchoolConfig(
       (remoteConfig) => {
         if (remoteConfig) {
@@ -184,31 +212,76 @@ export default function App() {
       }
     );
 
+    // 5. Subscribe to real-time changes in users collection
+    const unsubUsers = subscribeToUsers(
+      (remoteUsers) => {
+        if (remoteUsers && remoteUsers.length > 0) {
+          setUsers(remoteUsers);
+          localStorage.setItem('kartu_hafalan_users_v1', JSON.stringify(remoteUsers));
+          setLoggedInUser((curr) => {
+            if (!curr) return null;
+            const updated = remoteUsers.find((u) => u.id === curr.id);
+            if (updated) {
+              localStorage.setItem('kartu_hafalan_session_user', JSON.stringify(updated));
+              return updated;
+            }
+            return curr;
+          });
+        }
+      },
+      (err) => {
+        console.warn('Users listener notice:', err);
+      }
+    );
+
     return () => {
-      unsubAuth();
       unsubStudents();
       unsubCategories();
       unsubConfig();
+      unsubUsers();
     };
   }, []);
 
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-      showToast('Berhasil masuk dengan akun Google!');
-    } catch (err: unknown) {
-      console.error('Google Sign In error:', err);
-      showToast('Gagal masuk dengan Google.');
+  const handleLogin = (user: UserAccount) => {
+    setLoggedInUser(user);
+    localStorage.setItem('kartu_hafalan_session_user', JSON.stringify(user));
+    if (user.role === 'walikelas' && user.assignedKelas) {
+      setStudentClassFilter(user.assignedKelas);
+      const studentInClass = students.find(
+        (s) => s.kelas?.trim().toLowerCase() === user.assignedKelas.trim().toLowerCase()
+      );
+      if (studentInClass) {
+        setActiveStudentId(studentInClass.id);
+      }
+    } else {
+      setStudentClassFilter('all');
     }
+    showToast(`Selamat datang, ${user.name}!`);
   };
 
-  const handleGoogleLogout = async () => {
-    try {
-      await signOut(auth);
-      showToast('Berhasil keluar.');
-    } catch (err) {
-      console.error('Logout error:', err);
+  const handleLogout = () => {
+    setLoggedInUser(null);
+    localStorage.removeItem('kartu_hafalan_session_user');
+    showToast('Anda telah keluar dari sistem.');
+  };
+
+  const handleSaveUser = (user: UserAccount) => {
+    setUsers((prev) => {
+      const exists = prev.some((u) => u.id === user.id);
+      return exists ? prev.map((u) => (u.id === user.id ? user : u)) : [...prev, user];
+    });
+    if (loggedInUser?.id === user.id) {
+      setLoggedInUser(user);
+      localStorage.setItem('kartu_hafalan_session_user', JSON.stringify(user));
     }
+    saveUserToFirestore(user).catch((err) => console.error(err));
+    showToast(`Akun ${user.name} berhasil disimpan di Cloud!`);
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
+    deleteUserFromFirestore(userId).catch((err) => console.error(err));
+    showToast('Akun telah dihapus.');
   };
 
   // Student class filter & search
@@ -544,6 +617,17 @@ export default function App() {
       ? students.filter((s) => batchPrintStudentIds.includes(s.id))
       : activeStudent ? [activeStudent] : [];
 
+  // Protect system: require authentication before accessing data
+  if (!loggedInUser) {
+    return (
+      <LoginScreen
+        users={users}
+        customLogoUrl={config.customLogoUrl}
+        onLogin={handleLogin}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
       {/* TOAST FEEDBACK */}
@@ -612,59 +696,57 @@ export default function App() {
 
           {/* Header Action Buttons */}
           <div className="flex items-center gap-2">
-            {/* Cloud Sync Status Indicator */}
+            {/* Cloud Real-time Status Badge */}
             <div
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/70 border border-emerald-800 text-[11px] text-emerald-200"
-              title="Data tersinkron otomatis antar guru dan perangkat via Cloud Firestore"
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/80 border border-emerald-800 text-xs text-emerald-200 shadow-2xs"
+              title="Database Cloud Firestore aktif: data tersinkron otomatis antar guru dan semua perangkat"
             >
               <span className={`w-2 h-2 rounded-full ${isCloudConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
               <Cloud className="w-3.5 h-3.5 text-emerald-300" />
-              <span>{isCloudConnected ? 'Sinkron Cloud Aktif' : 'Menghubungkan Cloud...'}</span>
+              <span className="font-semibold text-[11px]">
+                {isCloudConnected ? 'Cloud Aktif' : 'Menghubungkan...'}
+              </span>
             </div>
 
-            {/* Google Account Profile / Sign In */}
-            {currentUser ? (
-              <div className="flex items-center gap-1.5 bg-emerald-950/80 pl-2 pr-1.5 py-1 rounded-xl border border-emerald-800 text-xs">
-                {currentUser.photoURL ? (
-                  <img
-                    src={currentUser.photoURL}
-                    alt={currentUser.displayName || 'Guru'}
-                    className="w-5 h-5 rounded-full object-cover"
-                  />
-                ) : (
-                  <UserCheck className="w-3.5 h-3.5 text-emerald-300" />
-                )}
-                <span className="text-[11px] font-semibold max-w-[80px] sm:max-w-[110px] truncate text-emerald-100">
-                  {currentUser.displayName || currentUser.email?.split('@')[0] || 'Guru'}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleGoogleLogout}
-                  title="Keluar dari akun Google"
-                  className="p-1 hover:bg-emerald-800 rounded-lg text-emerald-300 hover:text-white transition-colors cursor-pointer"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
+            {/* User Logged In Badge & Logout */}
+            <div className="flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-xl bg-emerald-950/80 border border-emerald-800 text-xs shadow-2xs">
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                  loggedInUser.role === 'admin'
+                    ? 'bg-purple-900/90 text-purple-200 border border-purple-600/60'
+                    : 'bg-emerald-800 text-emerald-200 border border-emerald-600/60'
+                }`}
+              >
+                {loggedInUser.role === 'admin' ? 'Admin' : `Wali ${loggedInUser.assignedKelas}`}
+              </span>
+              <span className="text-[11px] font-semibold text-white max-w-[85px] sm:max-w-[130px] truncate">
+                {loggedInUser.name}
+              </span>
               <button
                 type="button"
-                onClick={handleGoogleLogin}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl border border-white/20 transition-colors cursor-pointer"
-                title="Masuk dengan akun Google agar identitas guru tercatat"
+                onClick={() => setIsChangePasswordModalOpen(true)}
+                title="Ubah Password Akun Ini"
+                className="p-1 hover:bg-emerald-800 rounded-lg text-amber-300 hover:text-white transition-colors cursor-pointer ml-0.5"
               >
-                <LogIn className="w-3.5 h-3.5 text-amber-300" />
-                <span>Masuk Google</span>
+                <KeyRound className="w-3.5 h-3.5" />
               </button>
-            )}
+              <button
+                type="button"
+                onClick={handleLogout}
+                title="Keluar / Logout dari Akun"
+                className="p-1 hover:bg-emerald-800 rounded-lg text-emerald-300 hover:text-white transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
             {/* Primary Print Button */}
             <button
               onClick={handlePrintActiveStudent}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-colors cursor-pointer"
             >
               <Printer className="w-4 h-4 text-slate-950" />
-              <span>Cetak Kartu (Legal)</span>
+              <span>Cetak Kartu</span>
             </button>
 
             {/* Menu Lainnya Button */}
@@ -673,7 +755,7 @@ export default function App() {
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="inline-flex items-center gap-1 px-3 py-2 bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl border border-emerald-700 transition-colors cursor-pointer"
               >
-                <span>Menu Lainnya</span>
+                <span>Menu</span>
                 <ChevronDown className="w-3.5 h-3.5" />
               </button>
 
@@ -684,7 +766,32 @@ export default function App() {
                     className="fixed inset-0 z-40"
                     onClick={() => setIsMenuOpen(false)}
                   />
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 text-slate-800 text-xs">
+                  <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 text-slate-800 text-xs">
+                    {/* Change Password for Logged In User */}
+                    <button
+                      onClick={() => {
+                        setIsChangePasswordModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 hover:bg-amber-50 text-amber-900 flex items-center gap-2.5 font-bold cursor-pointer border-b border-slate-100"
+                    >
+                      <KeyRound className="w-4 h-4 text-amber-600" />
+                      <span>Ubah Password Akun Saya</span>
+                    </button>
+
+                    {/* Admin Only: Manage Teacher Accounts */}
+                    {loggedInUser.role === 'admin' && (
+                      <button
+                        onClick={() => {
+                          setIsUserManagerModalOpen(true);
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3.5 py-2 hover:bg-purple-50 text-purple-900 flex items-center gap-2.5 font-bold cursor-pointer border-b border-slate-100"
+                      >
+                        <Shield className="w-4 h-4 text-purple-700" />
+                        <span>Kelola Akun Guru ({users.length})</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         setIsStudentModalOpen(true);
@@ -1293,6 +1400,27 @@ export default function App() {
         onUpdateExaminers={handleUpdateExaminers}
         onSetDefaultExaminer={setDefaultPenguji}
       />
+
+      {/* Admin User Account Manager */}
+      <UserManagerModal
+        isOpen={isUserManagerModalOpen}
+        onClose={() => setIsUserManagerModalOpen(false)}
+        users={users}
+        availableClasses={availableStudentClasses}
+        currentUser={loggedInUser}
+        onSaveUser={handleSaveUser}
+        onDeleteUser={handleDeleteUser}
+      />
+
+      {/* Change Password Modal */}
+      {loggedInUser && (
+        <ChangePasswordModal
+          isOpen={isChangePasswordModalOpen}
+          onClose={() => setIsChangePasswordModalOpen(false)}
+          currentUser={loggedInUser}
+          onUpdateUser={handleSaveUser}
+        />
+      )}
     </div>
   );
 }

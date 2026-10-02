@@ -9,16 +9,18 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { HafalanCategory, SchoolConfig, Student } from '../types';
+import { HafalanCategory, SchoolConfig, Student, UserAccount } from '../types';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_SCHOOL_CONFIG,
   DEFAULT_STUDENTS,
 } from '../constants/defaultData';
+import { DEFAULT_USERS } from '../constants/defaultUsers';
 
 const STUDENTS_COLLECTION = 'students';
 const CATEGORIES_COLLECTION = 'categories';
 const SETTINGS_COLLECTION = 'settings';
+const USERS_COLLECTION = 'users';
 const CONFIG_DOC_ID = 'schoolConfig';
 
 /**
@@ -57,6 +59,18 @@ export async function initializeFirestoreIfEmpty(): Promise<void> {
     if (!configSnap.exists()) {
       console.log('Seeding initial school config to Firestore...');
       await setDoc(configRef, DEFAULT_SCHOOL_CONFIG);
+    }
+
+    // Check if users exist
+    const usersSnap = await getDocs(collection(db, USERS_COLLECTION));
+    if (usersSnap.empty) {
+      console.log('Seeding initial users to Firestore...');
+      const batch = writeBatch(db);
+      for (const u of DEFAULT_USERS) {
+        const uRef = doc(db, USERS_COLLECTION, u.id);
+        batch.set(uRef, u);
+      }
+      await batch.commit();
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, 'initial_seed');
@@ -223,3 +237,57 @@ export async function saveSchoolConfigToFirestore(config: SchoolConfig): Promise
     handleFirestoreError(error, OperationType.WRITE, `${SETTINGS_COLLECTION}/${CONFIG_DOC_ID}`);
   }
 }
+
+/**
+ * Subscribes to real-time changes in users collection.
+ */
+export function subscribeToUsers(
+  onData: (users: UserAccount[]) => void,
+  onError?: (err: unknown) => void
+): () => void {
+  return onSnapshot(
+    collection(db, USERS_COLLECTION),
+    (snapshot) => {
+      if (snapshot.empty) {
+        onData(DEFAULT_USERS);
+        return;
+      }
+      const list: UserAccount[] = [];
+      snapshot.forEach((d) => {
+        list.push({ ...(d.data() as UserAccount), id: d.id });
+      });
+      list.sort((a, b) => a.username.localeCompare(b.username));
+      onData(list);
+    },
+    (err) => {
+      console.warn('Firestore users subscription error:', err);
+      onError?.(err);
+      handleFirestoreError(err, OperationType.LIST, USERS_COLLECTION);
+    }
+  );
+}
+
+/**
+ * Saves or updates a user account to Firestore.
+ */
+export async function saveUserToFirestore(user: UserAccount): Promise<void> {
+  try {
+    const userRef = doc(db, USERS_COLLECTION, user.id);
+    await setDoc(userRef, user);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${USERS_COLLECTION}/${user.id}`);
+  }
+}
+
+/**
+ * Deletes a user account from Firestore.
+ */
+export async function deleteUserFromFirestore(userId: string): Promise<void> {
+  try {
+    const userRef = doc(db, USERS_COLLECTION, userId);
+    await deleteDoc(userRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${USERS_COLLECTION}/${userId}`);
+  }
+}
+

@@ -48,3 +48,17 @@ export interface SchoolConfig {
   printFilterMode?: PrintFilterMode;
   waliKelasPerClass?: Record<string, { name: string; nip?: string }>;
 }
+
+export type UserRole = 'admin' | 'walikelas';
+
+export interface UserAccount {
+  id: string;
+  username: string;
+  password: string;
+  name: string;
+  role: UserRole;
+  assignedKelas: string; // 'all' for admin, or specific class e.g. '2.1'
+  nip?: string;
+  createdAt: string;
+}
+
