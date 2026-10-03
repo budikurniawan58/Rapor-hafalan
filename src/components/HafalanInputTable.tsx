@@ -44,20 +44,15 @@ export const HafalanInputTable: React.FC<HafalanInputTableProps> = ({
   onOpenExaminerManager,
 }) => {
   const [showHelperTools, setShowHelperTools] = useState(false);
-  // View scope: 'class' (only items for this student's class) vs 'all' (all master items)
-  const [viewScope, setViewScope] = useState<'class' | 'all'>('class');
 
-  // Filtered categories based on view scope
+  // Filtered categories: strictly show ONLY categories and items applicable for this student's class
   const displayCategories = categories
     .map((category) => {
-      if (viewScope === 'class' && !isApplicableToClass(category.targetClasses, student.kelas)) {
+      if (!isApplicableToClass(category.targetClasses, student.kelas)) {
         return null;
       }
       const items = category.items.filter((item) => {
-        if (viewScope === 'class') {
-          return isApplicableToClass(item.targetClasses, student.kelas);
-        }
-        return true;
+        return isApplicableToClass(item.targetClasses, student.kelas);
       });
       if (items.length === 0) return null;
       return { ...category, items };
@@ -189,30 +184,13 @@ export const HafalanInputTable: React.FC<HafalanInputTableProps> = ({
 
         {/* View Scope & Action buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Class Filter Switcher */}
-          <div className="flex items-center bg-slate-200/80 p-0.5 rounded-xl text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => setViewScope('class')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                viewScope === 'class'
-                  ? 'bg-white text-emerald-800 shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Materi Kelas {student.kelas || '-'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewScope('all')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                viewScope === 'all'
-                  ? 'bg-white text-emerald-800 shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Semua Materi
-            </button>
+          {/* Class-Specific Material Badge */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-900 shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Materi Target Kelas {student.kelas || '-'}</span>
+            <span className="text-[11px] font-semibold text-emerald-700 bg-white px-2 py-0.5 rounded-md border border-emerald-200">
+              {totalItems} butir
+            </span>
           </div>
 
           <button

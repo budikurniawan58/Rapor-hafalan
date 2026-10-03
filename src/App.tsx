@@ -51,7 +51,7 @@ import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { LoginScreen } from './components/LoginScreen';
 import { SchoolLogo } from './components/SchoolLogo';
 import { downloadStudentExcelTemplate, ParsedStudentRow } from './utils/excelImport';
-import { getAvailableClasses } from './utils/hafalanFilter';
+import { getAvailableClasses, classMatches } from './utils/hafalanFilter';
 import { testConnection } from './firebase';
 import {
   initializeFirestoreIfEmpty,
@@ -248,7 +248,9 @@ export default function App() {
     if (user.role === 'walikelas' && user.assignedKelas) {
       setStudentClassFilter(user.assignedKelas);
       const studentInClass = students.find(
-        (s) => s.kelas?.trim().toLowerCase() === user.assignedKelas.trim().toLowerCase()
+        (s) =>
+          classMatches(user.assignedKelas, s.kelas) ||
+          s.kelas?.trim().toLowerCase() === user.assignedKelas.trim().toLowerCase()
       );
       if (studentInClass) {
         setActiveStudentId(studentInClass.id);
@@ -284,8 +286,19 @@ export default function App() {
     showToast('Akun telah dihapus.');
   };
 
-  // Student class filter & search
-  const [studentClassFilter, setStudentClassFilter] = useState<string>('all');
+  // Student class filter & search: if wali kelas, default to their assigned class!
+  const [studentClassFilter, setStudentClassFilter] = useState<string>(() => {
+    try {
+      const savedUser = localStorage.getItem('kartu_hafalan_session_user');
+      if (savedUser) {
+        const u: UserAccount = JSON.parse(savedUser);
+        if (u.role === 'walikelas' && u.assignedKelas) {
+          return u.assignedKelas;
+        }
+      }
+    } catch {}
+    return 'all';
+  });
   const [studentSearchQuery, setStudentSearchQuery] = useState<string>('');
 
   // Extract all distinct classes
@@ -297,6 +310,7 @@ export default function App() {
   const visibleStudents = students.filter((s) => {
     const matchesClass =
       studentClassFilter === 'all' ||
+      classMatches(studentClassFilter, s.kelas) ||
       s.kelas?.trim().toLowerCase() === studentClassFilter.trim().toLowerCase();
     const query = studentSearchQuery.trim().toLowerCase();
     const matchesSearch =
@@ -325,11 +339,13 @@ export default function App() {
     setStudentClassFilter(newCls);
     if (newCls !== 'all') {
       const inClass = students.filter(
-        (s) => s.kelas?.trim().toLowerCase() === newCls.trim().toLowerCase()
+        (s) =>
+          classMatches(newCls, s.kelas) ||
+          s.kelas?.trim().toLowerCase() === newCls.trim().toLowerCase()
       );
       if (
         inClass.length > 0 &&
-        (!activeStudent || activeStudent.kelas?.trim().toLowerCase() !== newCls.trim().toLowerCase())
+        (!activeStudent || !classMatches(newCls, activeStudent.kelas))
       ) {
         setActiveStudentId(inClass[0].id);
       }
@@ -814,16 +830,18 @@ export default function App() {
                       <span>Impor Siswa dari Excel</span>
                     </button>
 
-                    <button
-                      onClick={() => {
-                        setIsMateriModalOpen(true);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 font-medium cursor-pointer"
-                    >
-                      <BookOpen className="w-4 h-4 text-blue-700" />
-                      <span>Atur Materi & Kategori Hafalan</span>
-                    </button>
+                    {loggedInUser.role === 'admin' && (
+                      <button
+                        onClick={() => {
+                          setIsMateriModalOpen(true);
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 font-medium cursor-pointer"
+                      >
+                        <BookOpen className="w-4 h-4 text-blue-700" />
+                        <span>Atur Materi & Kategori Hafalan</span>
+                      </button>
+                    )}
 
                     <button
                       onClick={() => {
@@ -836,16 +854,18 @@ export default function App() {
                       <span>Daftar Nama Penguji ({examiners.length})</span>
                     </button>
 
-                    <button
-                      onClick={() => {
-                        setIsSettingsModalOpen(true);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 font-medium cursor-pointer"
-                    >
-                      <Settings className="w-4 h-4 text-slate-600" />
-                      <span>Pengaturan Kop & Penguji</span>
-                    </button>
+                    {loggedInUser.role === 'admin' && (
+                      <button
+                        onClick={() => {
+                          setIsSettingsModalOpen(true);
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 font-medium cursor-pointer"
+                      >
+                        <Settings className="w-4 h-4 text-slate-600" />
+                        <span>Pengaturan Kop & Titimangsa</span>
+                      </button>
+                    )}
 
                     <button
                       onClick={() => {
@@ -925,23 +945,36 @@ export default function App() {
               </span>
 
               <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleClassFilterChange('all')}
-                  className={`px-3 py-1 text-xs rounded-xl font-bold transition-all cursor-pointer ${
-                    studentClassFilter === 'all'
-                      ? 'bg-emerald-700 text-white shadow-2xs'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
-                  }`}
-                >
-                  Semua Kelas ({students.length})
-                </button>
+                {loggedInUser.role === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => handleClassFilterChange('all')}
+                    className={`px-3 py-1 text-xs rounded-xl font-bold transition-all cursor-pointer ${
+                      studentClassFilter === 'all'
+                        ? 'bg-emerald-700 text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                    }`}
+                  >
+                    Semua Kelas ({students.length})
+                  </button>
+                )}
 
-                {availableStudentClasses.map((cls) => {
+                {(loggedInUser.role === 'admin'
+                  ? availableStudentClasses
+                  : availableStudentClasses.filter(
+                      (cls) =>
+                        classMatches(loggedInUser.assignedKelas, cls) ||
+                        cls.toLowerCase() === loggedInUser.assignedKelas.toLowerCase()
+                    )
+                ).map((cls) => {
                   const countInClass = students.filter(
-                    (s) => s.kelas.trim().toLowerCase() === cls.toLowerCase()
+                    (s) =>
+                      classMatches(cls, s.kelas) ||
+                      s.kelas.trim().toLowerCase() === cls.toLowerCase()
                   ).length;
-                  const isSelected = studentClassFilter.toLowerCase() === cls.toLowerCase();
+                  const isSelected =
+                    studentClassFilter.toLowerCase() === cls.toLowerCase() ||
+                    classMatches(studentClassFilter, cls);
 
                   return (
                     <button
@@ -1368,7 +1401,9 @@ export default function App() {
         activeStudentClass={activeStudent?.kelas}
         onSaveCategories={(newCats) => {
           setCategories(newCats);
-          showToast('Kategori dan butir hafalan berhasil diperbarui!');
+          localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(newCats));
+          saveCategoriesToFirestore(newCats).catch((err) => console.error(err));
+          showToast('Materi hafalan berhasil disimpan dan disinkronkan ke seluruh akun guru!');
         }}
       />
 
@@ -1378,7 +1413,9 @@ export default function App() {
         config={config}
         onUpdateConfig={(newConf) => {
           setConfig(newConf);
-          showToast('Pengaturan lembaga berhasil disimpan!');
+          localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(newConf));
+          saveSchoolConfigToFirestore(newConf).catch((err) => console.error(err));
+          showToast('Pengaturan lembaga berhasil disimpan ke Cloud Database!');
         }}
         onExportAllData={handleExportAllData}
         onImportData={handleImportData}

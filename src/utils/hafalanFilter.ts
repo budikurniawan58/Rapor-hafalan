@@ -12,6 +12,38 @@ export function normalizeClassName(className: string): string {
 }
 
 /**
+ * Checks whether a single target class string matches a student's class string.
+ * Examples:
+ * - Target "5" matches student "5", "5.1", "5.2", "Kelas 5"
+ * - Target "5" does NOT match student "2.1", "2", "1.1"
+ * - Target "2.1" matches student "2.1", "Kelas 2.1"
+ * - Target "2.1" does NOT match student "5", "1.1", "2.2"
+ * - Target "2" matches student "2", "2.1", "2.2", "Kelas 2"
+ */
+export function classMatches(targetClass: string, studentClass: string): boolean {
+  const normTarget = normalizeClassName(targetClass);
+  const normStudent = normalizeClassName(studentClass);
+
+  if (!normTarget || !normStudent) return false;
+
+  // 1. Exact match (e.g. "2.1" === "2.1", "5" === "5")
+  if (normTarget === normStudent) return true;
+
+  // 2. If target is a general grade level e.g. "5" or "2"
+  const targetGradeMatch = normTarget.match(/^([1-6])(\.0)?$/);
+  if (targetGradeMatch) {
+    const gradeNum = targetGradeMatch[1];
+    // Check if student starts with this grade followed by dot, hyphen, space, or letter
+    const studentGradeMatch = normStudent.match(/^([1-6])([.\s\-_a-zA-Z]|$)/);
+    if (studentGradeMatch && studentGradeMatch[1] === gradeNum) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Checks whether a hafalan item or category applies to a given student's class.
  */
 export function isApplicableToClass(
@@ -39,16 +71,7 @@ export function isApplicableToClass(
     return true;
   }
 
-  const normalizedStudent = normalizeClassName(studentClass);
-
-  return targetClasses.some((tc) => {
-    const normalizedTarget = normalizeClassName(tc);
-    return (
-      normalizedTarget === normalizedStudent ||
-      normalizedTarget === tc.toLowerCase().trim() ||
-      tc.toLowerCase().trim() === studentClass.toLowerCase().trim()
-    );
-  });
+  return targetClasses.some((tc) => classMatches(tc, studentClass));
 }
 
 /**

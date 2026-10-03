@@ -214,12 +214,25 @@ export async function deleteStudentFromFirestore(studentId: string): Promise<voi
  */
 export async function saveCategoriesToFirestore(categories: HafalanCategory[]): Promise<void> {
   try {
+    const existingSnap = await getDocs(collection(db, CATEGORIES_COLLECTION));
+    const newCatIds = new Set(categories.map((c) => c.id));
+
     const batch = writeBatch(db);
+
+    // Delete categories that are no longer present
+    existingSnap.forEach((docSnap) => {
+      if (!newCatIds.has(docSnap.id)) {
+        batch.delete(docSnap.ref);
+      }
+    });
+
+    // Save all categories with their items and class targeting
     for (let i = 0; i < categories.length; i++) {
       const cat = categories[i];
       const catRef = doc(db, CATEGORIES_COLLECTION, cat.id);
       batch.set(catRef, { ...cat, order: i });
     }
+
     await batch.commit();
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, CATEGORIES_COLLECTION);
