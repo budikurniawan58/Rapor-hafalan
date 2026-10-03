@@ -29,6 +29,7 @@ import {
   Shield,
   User as UserIcon,
   KeyRound,
+  ExternalLink,
 } from 'lucide-react';
 
 import { HafalanCategory, PrintFilterMode, SchoolConfig, Student, UserAccount } from './types';
@@ -52,6 +53,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { SchoolLogo } from './components/SchoolLogo';
 import { downloadStudentExcelTemplate, ParsedStudentRow } from './utils/excelImport';
 import { getAvailableClasses, classMatches } from './utils/hafalanFilter';
+import { downloadPrintableHtml } from './utils/printDocument';
 import { testConnection } from './firebase';
 import {
   initializeFirestoreIfEmpty,
@@ -627,15 +629,38 @@ export default function App() {
   const handlePrintActiveStudent = () => {
     setBatchPrintStudentIds([]);
     setTimeout(() => {
-      window.print();
-    }, 60);
+      try {
+        window.print();
+      } catch (err) {
+        console.warn('Direct print window.print blocked:', err);
+        showToast('Dialog cetak dibatasi browser di frame ini. Silakan gunakan tombol "Unduh File Siap Cetak" atau "Buka Tab Baru".');
+      }
+    }, 80);
+  };
+
+  const handleDownloadActiveStudentHtml = () => {
+    if (!activeStudent) return;
+    downloadPrintableHtml([activeStudent], categories, config, users);
+    showToast(`Dokumen cetak untuk ${activeStudent.name} berhasil diunduh!`);
   };
 
   const handleTriggerBatchPrint = (selectedIds: string[]) => {
     setBatchPrintStudentIds(selectedIds);
     setTimeout(() => {
-      window.print();
+      try {
+        window.print();
+      } catch (err) {
+        console.warn('Batch print window.print blocked:', err);
+        showToast('Pencetakan dibatasi oleh frame preview. Silakan gunakan tombol "Unduh HTML Massal".');
+      }
     }, 150);
+  };
+
+  const handleDownloadBatchHtml = (selectedIds: string[]) => {
+    const selectedStudents = students.filter((s) => selectedIds.includes(s.id));
+    if (selectedStudents.length === 0) return;
+    downloadPrintableHtml(selectedStudents, categories, config, users);
+    showToast(`Dokumen HTML massal (${selectedStudents.length} siswa) berhasil diunduh!`);
   };
 
   // Export / Import
@@ -699,7 +724,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-100 print:bg-white print:min-h-0 flex flex-col font-sans">
       {/* TOAST FEEDBACK */}
       {toastMessage && (
         <div className="fixed top-4 right-4 z-60 bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 animate-in fade-in slide-in-from-top-3 border border-slate-700">
@@ -1265,20 +1290,41 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Print button */}
+                {/* Action Buttons: Print, Download HTML, Open in New Tab, Batch */}
                 <button
                   onClick={handlePrintActiveStudent}
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+                  title="Cetak langsung menggunakan dialog print browser"
                 >
                   <Printer className="w-4 h-4" />
                   <span>Cetak Siswa Ini</span>
                 </button>
 
                 <button
-                  onClick={() => setIsBatchPrintModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+                  onClick={handleDownloadActiveStudentHtml}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+                  title="Unduh dokumen rapor HTML mandiri siap cetak (bebas hambatan di semua browser & gadget)"
                 >
-                  <Layers className="w-4 h-4" />
+                  <Download className="w-4 h-4" />
+                  <span>Unduh File Siap Cetak</span>
+                </button>
+
+                <a
+                  href={window.location.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl border border-slate-300 transition-colors"
+                  title="Buka aplikasi langsung di tab browser baru untuk mencetak bebas hambatan"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Buka Tab Baru</span>
+                </a>
+
+                <button
+                  onClick={() => setIsBatchPrintModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+                >
+                  <Layers className="w-4 h-4 text-emerald-400" />
                   <span>Cetak Massal</span>
                 </button>
               </div>
@@ -1352,11 +1398,20 @@ export default function App() {
                     <ZoomIn className="w-3.5 h-3.5" />
                   </button>
                   <button
+                    onClick={handleDownloadActiveStudentHtml}
+                    className="ml-2 inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors"
+                    title="Unduh dokumen rapor mandiri siap cetak"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Unduh</span>
+                  </button>
+                  <button
                     onClick={handlePrintActiveStudent}
-                    className="ml-2 inline-flex items-center gap-1 px-3 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-lg"
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-lg cursor-pointer transition-colors"
+                    title="Buka dialog cetak browser (Ctrl + P)"
                   >
                     <Printer className="w-3.5 h-3.5" />
-                    Cetak
+                    <span>Cetak</span>
                   </button>
                 </div>
               </div>
@@ -1409,7 +1464,7 @@ export default function App() {
       </footer>
 
       {/* PRINT-ONLY ROOT (Triggers cleanly on window.print()) */}
-      <div className="print-root hidden print:block">
+      <div className="print-root hidden print:block bg-white">
         {studentsToPrint.map((studentToPrint) => (
           <PrintCard
             key={studentToPrint.id}
@@ -1488,6 +1543,7 @@ export default function App() {
         students={students}
         defaultClass={loggedInUser?.role === 'walikelas' ? loggedInUser.assignedKelas : undefined}
         onTriggerBatchPrint={handleTriggerBatchPrint}
+        onDownloadBatchHtml={handleDownloadBatchHtml}
       />
 
       <ExaminerManagerModal

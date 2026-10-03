@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Printer, CheckSquare, Square, X, Filter, GraduationCap } from 'lucide-react';
+import { Printer, CheckSquare, Square, X, Filter, GraduationCap, Download } from 'lucide-react';
 import { Student } from '../types';
 
 interface BatchPrintModalProps {
@@ -8,6 +8,7 @@ interface BatchPrintModalProps {
   students: Student[];
   defaultClass?: string;
   onTriggerBatchPrint: (selectedIds: string[]) => void;
+  onDownloadBatchHtml?: (selectedIds: string[]) => void;
 }
 
 export const BatchPrintModal: React.FC<BatchPrintModalProps> = ({
@@ -16,6 +17,7 @@ export const BatchPrintModal: React.FC<BatchPrintModalProps> = ({
   students,
   defaultClass,
   onTriggerBatchPrint,
+  onDownloadBatchHtml,
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [classFilter, setClassFilter] = useState<string>(defaultClass || 'all');
@@ -250,7 +252,7 @@ export const BatchPrintModal: React.FC<BatchPrintModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap justify-between items-center gap-2">
           <button
             onClick={onClose}
             className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
@@ -258,14 +260,32 @@ export const BatchPrintModal: React.FC<BatchPrintModalProps> = ({
             Batal
           </button>
 
-          <button
-            disabled={selectedIds.length === 0}
-            onClick={handlePrint}
-            className="inline-flex items-center gap-2 px-5 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs"
-          >
-            <Printer className="w-4 h-4" />
-            Cetak {selectedIds.length} Siswa (Legal)
-          </button>
+          <div className="flex items-center gap-2">
+            {onDownloadBatchHtml && (
+              <button
+                type="button"
+                disabled={selectedIds.length === 0}
+                onClick={() => {
+                  onDownloadBatchHtml(selectedIds);
+                  onClose();
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                title="Unduh dokumen HTML mandiri yang dapat dibuka dan dicetak di semua browser tanpa hambatan"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Unduh HTML ({selectedIds.length})</span>
+              </button>
+            )}
+
+            <button
+              disabled={selectedIds.length === 0}
+              onClick={handlePrint}
+              className="inline-flex items-center gap-2 px-5 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Cetak {selectedIds.length} Siswa</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
