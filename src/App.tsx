@@ -101,9 +101,61 @@ export default function App() {
     }
   });
 
-  const [activeStudentId, setActiveStudentId] = useState<string>(
-    students[0]?.id || 'std_adia'
-  );
+  // User Authentication & Access Control
+  const [users, setUsers] = useState<UserAccount[]>(() => {
+    try {
+      const saved = localStorage.getItem('kartu_hafalan_users_v1');
+      return saved ? JSON.parse(saved) : DEFAULT_USERS;
+    } catch {
+      return DEFAULT_USERS;
+    }
+  });
+
+  const [loggedInUser, setLoggedInUser] = useState<UserAccount | null>(() => {
+    try {
+      const saved = localStorage.getItem('kartu_hafalan_session_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Student class filter & search: if wali kelas, default to their assigned class!
+  const [studentClassFilter, setStudentClassFilter] = useState<string>(() => {
+    try {
+      const savedUser = localStorage.getItem('kartu_hafalan_session_user');
+      if (savedUser) {
+        const u: UserAccount = JSON.parse(savedUser);
+        if (u.role === 'walikelas' && u.assignedKelas) {
+          return u.assignedKelas;
+        }
+      }
+    } catch {}
+    return 'all';
+  });
+  const [studentSearchQuery, setStudentSearchQuery] = useState<string>('');
+
+  const [activeStudentId, setActiveStudentId] = useState<string>(() => {
+    try {
+      const savedUserStr = localStorage.getItem('kartu_hafalan_session_user');
+      const savedStudentsStr = localStorage.getItem(STORAGE_KEY_STUDENTS);
+      const studentList: Student[] = savedStudentsStr ? JSON.parse(savedStudentsStr) : DEFAULT_STUDENTS;
+      if (savedUserStr) {
+        const u: UserAccount = JSON.parse(savedUserStr);
+        if (u.role === 'walikelas' && u.assignedKelas) {
+          const match = studentList.find(
+            (s) =>
+              classMatches(u.assignedKelas, s.kelas) ||
+              s.kelas?.trim().toLowerCase() === u.assignedKelas.trim().toLowerCase()
+          );
+          if (match) return match.id;
+        }
+      }
+      return studentList[0]?.id || 'std_adia';
+    } catch {
+      return 'std_adia';
+    }
+  });
 
   // Simplified views: 'input' (Input Nilai), 'preview' (Lihat & Cetak), 'split' (Berdampingan)
   const [activeTab, setActiveTab] = useState<'input' | 'preview' | 'split'>('input');
@@ -138,25 +190,6 @@ export default function App() {
   // Cloud Firestore Sync State
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
 
-  // User Authentication & Access Control
-  const [users, setUsers] = useState<UserAccount[]>(() => {
-    try {
-      const saved = localStorage.getItem('kartu_hafalan_users_v1');
-      return saved ? JSON.parse(saved) : DEFAULT_USERS;
-    } catch {
-      return DEFAULT_USERS;
-    }
-  });
-
-  const [loggedInUser, setLoggedInUser] = useState<UserAccount | null>(() => {
-    try {
-      const saved = localStorage.getItem('kartu_hafalan_session_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-
   const [isUserManagerModalOpen, setIsUserManagerModalOpen] = useState(false);
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
 
@@ -175,8 +208,18 @@ export default function App() {
           setStudents(remoteStudents);
           setIsCloudConnected(true);
           setActiveStudentId((currentId) => {
-            const exists = remoteStudents.some((s) => s.id === currentId);
-            return exists ? currentId : remoteStudents[0].id;
+            const currentStudent = remoteStudents.find((s) => s.id === currentId);
+            // If logged in as wali kelas, ensure selected student belongs to their class
+            if (loggedInUser?.role === 'walikelas' && loggedInUser?.assignedKelas) {
+              if (currentStudent && classMatches(loggedInUser.assignedKelas, currentStudent.kelas)) {
+                return currentId;
+              }
+              const inClass = remoteStudents.find((s) =>
+                classMatches(loggedInUser.assignedKelas, s.kelas)
+              );
+              return inClass ? inClass.id : remoteStudents[0].id;
+            }
+            return currentStudent ? currentId : remoteStudents[0].id;
           });
         }
       },
@@ -286,21 +329,6 @@ export default function App() {
     showToast('Akun telah dihapus.');
   };
 
-  // Student class filter & search: if wali kelas, default to their assigned class!
-  const [studentClassFilter, setStudentClassFilter] = useState<string>(() => {
-    try {
-      const savedUser = localStorage.getItem('kartu_hafalan_session_user');
-      if (savedUser) {
-        const u: UserAccount = JSON.parse(savedUser);
-        if (u.role === 'walikelas' && u.assignedKelas) {
-          return u.assignedKelas;
-        }
-      }
-    } catch {}
-    return 'all';
-  });
-  const [studentSearchQuery, setStudentSearchQuery] = useState<string>('');
-
   // Extract all distinct classes
   const availableStudentClasses = Array.from(
     new Set(students.map((s) => s.kelas?.trim()).filter(Boolean))
@@ -320,6 +348,16 @@ export default function App() {
       (s.nisn && s.nisn.toLowerCase().includes(query));
     return matchesClass && matchesSearch;
   });
+
+  // Guard: Ensure activeStudentId ALWAYS stays in sync with visible students in the current class!
+  useEffect(() => {
+    if (visibleStudents.length > 0) {
+      const isCurrentValid = visibleStudents.some((s) => s.id === activeStudentId);
+      if (!isCurrentValid) {
+        setActiveStudentId(visibleStudents[0].id);
+      }
+    }
+  }, [studentClassFilter, visibleStudents, activeStudentId]);
 
   // Group visible students by class
   const groupedVisibleStudents = visibleStudents.reduce<Record<string, Student[]>>(
@@ -452,8 +490,12 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Find active student safely
-  const activeStudent = students.find((s) => s.id === activeStudentId) || students[0];
+  // Find active student safely, prioritizing visible students in the current class filter!
+  const activeStudent =
+    visibleStudents.find((s) => s.id === activeStudentId) ||
+    visibleStudents[0] ||
+    students.find((s) => s.id === activeStudentId) ||
+    students[0];
 
   // Update a single evaluation record
   const handleUpdateRecord = (
@@ -1372,6 +1414,7 @@ export default function App() {
         onClose={() => setIsStudentModalOpen(false)}
         students={students}
         activeStudentId={activeStudentId}
+        defaultClass={loggedInUser?.role === 'walikelas' ? loggedInUser.assignedKelas : activeStudent?.kelas}
         onSelectStudent={(id) => setActiveStudentId(id)}
         onAddStudent={handleAddStudent}
         onUpdateStudent={handleUpdateStudent}
@@ -1388,7 +1431,7 @@ export default function App() {
       <ExcelImportModal
         isOpen={isExcelImportModalOpen}
         onClose={() => setIsExcelImportModalOpen(false)}
-        defaultKelas={activeStudent?.kelas || '2.1'}
+        defaultKelas={loggedInUser?.role === 'walikelas' ? loggedInUser.assignedKelas : activeStudent?.kelas || '2.1'}
         defaultTahunPelajaran={config.academicYear}
         onImport={handleBatchImportStudents}
       />
@@ -1426,6 +1469,7 @@ export default function App() {
         isOpen={isBatchPrintModalOpen}
         onClose={() => setIsBatchPrintModalOpen(false)}
         students={students}
+        defaultClass={loggedInUser?.role === 'walikelas' ? loggedInUser.assignedKelas : undefined}
         onTriggerBatchPrint={handleTriggerBatchPrint}
       />
 

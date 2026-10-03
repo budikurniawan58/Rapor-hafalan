@@ -19,6 +19,7 @@ interface StudentManagerModalProps {
   onClose: () => void;
   students: Student[];
   activeStudentId: string;
+  defaultClass?: string;
   onSelectStudent: (id: string) => void;
   onAddStudent: (student: Omit<Student, 'id' | 'records'>) => void;
   onUpdateStudent: (id: string, updated: Partial<Student>) => void;
@@ -32,6 +33,7 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
   onClose,
   students,
   activeStudentId,
+  defaultClass,
   onSelectStudent,
   onAddStudent,
   onUpdateStudent,
@@ -40,16 +42,29 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
   onDownloadTemplate,
 }) => {
   const [search, setSearch] = useState('');
-  const [selectedClassFilter, setSelectedClassFilter] = useState<string>('all');
+  const [selectedClassFilter, setSelectedClassFilter] = useState<string>(defaultClass || 'all');
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form state for new / edit
   const [formName, setFormName] = useState('');
   const [formNis, setFormNis] = useState('');
   const [formNisn, setFormNisn] = useState('');
-  const [formKelas, setFormKelas] = useState('2.1');
+  const [formKelas, setFormKelas] = useState(defaultClass || '2.1');
   const [formTahunPelajaran, setFormTahunPelajaran] = useState('2026/2027');
   const [isAddingNew, setIsAddingNew] = useState(false);
+
+  // Sync defaultClass when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      if (defaultClass) {
+        setSelectedClassFilter(defaultClass);
+        setFormKelas(defaultClass);
+      }
+      setSearch('');
+      setEditingId(null);
+      setIsAddingNew(false);
+    }
+  }, [isOpen, defaultClass]);
 
   if (!isOpen) return null;
 

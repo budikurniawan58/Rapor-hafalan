@@ -6,6 +6,7 @@ interface BatchPrintModalProps {
   isOpen: boolean;
   onClose: () => void;
   students: Student[];
+  defaultClass?: string;
   onTriggerBatchPrint: (selectedIds: string[]) => void;
 }
 
@@ -13,10 +14,27 @@ export const BatchPrintModal: React.FC<BatchPrintModalProps> = ({
   isOpen,
   onClose,
   students,
+  defaultClass,
   onTriggerBatchPrint,
 }) => {
-  const [selectedIds, setSelectedIds] = useState<string[]>(students.map((s) => s.id));
-  const [classFilter, setClassFilter] = useState<string>('all');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [classFilter, setClassFilter] = useState<string>(defaultClass || 'all');
+
+  // Sync state when opened
+  React.useEffect(() => {
+    if (isOpen) {
+      const initClass = defaultClass || 'all';
+      setClassFilter(initClass);
+      if (initClass !== 'all') {
+        const inClass = students.filter(
+          (s) => s.kelas.trim().toLowerCase() === initClass.trim().toLowerCase()
+        );
+        setSelectedIds(inClass.map((s) => s.id));
+      } else {
+        setSelectedIds(students.map((s) => s.id));
+      }
+    }
+  }, [isOpen, defaultClass, students]);
 
   if (!isOpen) return null;
 
