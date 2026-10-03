@@ -1,4 +1,4 @@
-import { HafalanCategory, HafalanItem, PrintFilterMode, Student } from '../types';
+import { HafalanCategory, HafalanItem, PrintFilterMode, Student, UserAccount } from '../types';
 
 /**
  * Normalizes class strings for matching (e.g., "Kelas 2.1" -> "2.1", "2.1" -> "2.1")
@@ -167,4 +167,59 @@ export function getAvailableClasses(
   }
 
   return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
+/**
+ * Resolves the appropriate Wali Kelas name and NIP for a specific student's class.
+ * Priority:
+ * 1. Exact or matching key in config.waliKelasPerClass
+ * 2. UserAccount where role === 'walikelas' matching student class
+ * 3. Fallback to general examinerName & examinerNip
+ */
+export function findWaliKelasForStudent(
+  studentClass: string | undefined,
+  waliKelasMap?: Record<string, { name: string; nip?: string }>,
+  users?: UserAccount[],
+  fallbackName: string = 'Fikra Abdillah Zaenal, S.S., S.Pd.',
+  fallbackNip: string = ''
+): { name: string; nip?: string } {
+  if (!studentClass || !studentClass.trim()) {
+    return { name: fallbackName, nip: fallbackNip };
+  }
+
+  const clean = studentClass.trim();
+
+  // 1. Direct key match in waliKelasMap
+  if (waliKelasMap) {
+    if (waliKelasMap[clean]?.name?.trim()) {
+      return waliKelasMap[clean];
+    }
+    const norm = normalizeClassName(clean);
+    if (waliKelasMap[norm]?.name?.trim()) {
+      return waliKelasMap[norm];
+    }
+    // Check with classMatches
+    for (const [key, val] of Object.entries(waliKelasMap)) {
+      if (val?.name?.trim() && classMatches(key, clean)) {
+        return val;
+      }
+    }
+  }
+
+  // 2. Check registered teacher accounts in users
+  if (users && users.length > 0) {
+    const matchedUser = users.find(
+      (u) =>
+        u.role === 'walikelas' &&
+        u.assignedKelas &&
+        (classMatches(u.assignedKelas, clean) ||
+          u.assignedKelas.trim().toLowerCase() === clean.toLowerCase() ||
+          normalizeClassName(u.assignedKelas) === normalizeClassName(clean))
+    );
+    if (matchedUser && matchedUser.name?.trim()) {
+      return { name: matchedUser.name, nip: matchedUser.nip || '' };
+    }
+  }
+
+  return { name: fallbackName, nip: fallbackNip };
 }

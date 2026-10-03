@@ -1,12 +1,13 @@
 import React from 'react';
-import { HafalanCategory, PrintFilterMode, SchoolConfig, Student } from '../types';
+import { HafalanCategory, PrintFilterMode, SchoolConfig, Student, UserAccount } from '../types';
 import { SchoolLogo } from './SchoolLogo';
-import { filterCategoriesForStudent } from '../utils/hafalanFilter';
+import { filterCategoriesForStudent, findWaliKelasForStudent } from '../utils/hafalanFilter';
 
 interface PrintCardProps {
   student: Student;
   categories: HafalanCategory[];
   config: SchoolConfig;
+  users?: UserAccount[];
   className?: string;
   isPrinting?: boolean;
   printFilterMode?: PrintFilterMode;
@@ -16,6 +17,7 @@ export const PrintCard: React.FC<PrintCardProps> = ({
   student,
   categories,
   config,
+  users,
   className = '',
   isPrinting = false,
   printFilterMode,
@@ -278,11 +280,22 @@ export const PrintCard: React.FC<PrintCardProps> = ({
 
       {/* SIGNATURE SECTION */}
       {(() => {
-        // Wali Kelas: check per-class override or fallback to examinerName
-        const classWali = config.waliKelasPerClass?.[student.kelas?.trim()];
-        const waliName = classWali?.name || config.examinerName || 'Fikra Abdillah Zaenal, S.S., S.Pd.';
-        const waliTitle = config.examinerTitle || 'Wali Kelas,';
-        const waliNip = classWali?.nip || config.examinerNip || '';
+        // Resolve matching wali kelas for student.kelas accurately
+        const resolvedWali = findWaliKelasForStudent(
+          student.kelas,
+          config.waliKelasPerClass,
+          users,
+          config.examinerName || 'Fikra Abdillah Zaenal, S.S., S.Pd.',
+          config.examinerNip || ''
+        );
+        const waliName = resolvedWali.name;
+        const waliNip = resolvedWali.nip || '';
+
+        // Dynamic title: "Wali Kelas 1.1," or fallback
+        const cleanClass = student.kelas ? student.kelas.replace(/^kelas\s+/i, '').trim() : '';
+        const waliTitle = cleanClass
+          ? `Wali Kelas ${cleanClass},`
+          : (config.examinerTitle || 'Wali Kelas,');
 
         return (
           <div className="mt-6 text-[10pt] text-black">

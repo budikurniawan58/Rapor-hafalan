@@ -319,6 +319,18 @@ export default function App() {
       setLoggedInUser(user);
       localStorage.setItem('kartu_hafalan_session_user', JSON.stringify(user));
     }
+    // Automatically synchronize teacher name & NIP to config.waliKelasPerClass
+    if (user.role === 'walikelas' && user.assignedKelas) {
+      const cleanClass = user.assignedKelas.trim();
+      const updatedWali = {
+        ...(config.waliKelasPerClass || {}),
+        [cleanClass]: { name: user.name, nip: user.nip || '' },
+      };
+      const updatedConfig = { ...config, waliKelasPerClass: updatedWali };
+      setConfig(updatedConfig);
+      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(updatedConfig));
+      saveSchoolConfigToFirestore(updatedConfig).catch((err) => console.error(err));
+    }
     saveUserToFirestore(user).catch((err) => console.error(err));
     showToast(`Akun ${user.name} berhasil disimpan di Cloud!`);
   };
@@ -1286,6 +1298,7 @@ export default function App() {
                   student={activeStudent}
                   categories={categories}
                   config={config}
+                  users={users}
                   printFilterMode={printFilterMode}
                 />
               </div>
@@ -1361,6 +1374,7 @@ export default function App() {
                     student={activeStudent}
                     categories={categories}
                     config={config}
+                    users={users}
                     printFilterMode={printFilterMode}
                   />
                 </div>
@@ -1402,6 +1416,7 @@ export default function App() {
             student={studentToPrint}
             categories={categories}
             config={config}
+            users={users}
             isPrinting={true}
             printFilterMode={printFilterMode}
           />
@@ -1454,11 +1469,13 @@ export default function App() {
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
         config={config}
+        users={users}
+        availableClasses={availableStudentClasses}
         onUpdateConfig={(newConf) => {
           setConfig(newConf);
           localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(newConf));
           saveSchoolConfigToFirestore(newConf).catch((err) => console.error(err));
-          showToast('Pengaturan lembaga berhasil disimpan ke Cloud Database!');
+          showToast('Pengaturan lembaga & wali kelas berhasil disimpan ke Cloud Database!');
         }}
         onExportAllData={handleExportAllData}
         onImportData={handleImportData}

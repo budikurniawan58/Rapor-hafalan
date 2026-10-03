@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
-import { Settings, Upload, RotateCcw, Download, FileUp, X } from 'lucide-react';
-import { SchoolConfig } from '../types';
+import React, { useRef, useState } from 'react';
+import { Settings, Upload, RotateCcw, Download, FileUp, X, Plus, Trash2, UserCheck, RefreshCw } from 'lucide-react';
+import { SchoolConfig, UserAccount } from '../types';
 import { DEFAULT_SCHOOL_CONFIG } from '../constants/defaultData';
 import { SchoolLogo } from './SchoolLogo';
 
@@ -8,6 +8,8 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   config: SchoolConfig;
+  users?: UserAccount[];
+  availableClasses?: string[];
   onUpdateConfig: (updated: SchoolConfig) => void;
   onExportAllData: () => void;
   onImportData: (file: File) => void;
@@ -18,6 +20,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   config,
+  users = [],
+  availableClasses = ['1.1', '2.1', '5'],
   onUpdateConfig,
   onExportAllData,
   onImportData,
@@ -25,6 +29,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
+
+  // State for adding a new Wali Kelas
+  const [isAddingWali, setIsAddingWali] = useState(false);
+  const [newWaliKelas, setNewWaliKelas] = useState('');
+  const [newWaliName, setNewWaliName] = useState('');
+  const [newWaliNip, setNewWaliNip] = useState('');
 
   if (!isOpen) return null;
 
@@ -264,63 +274,295 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
 
           {/* Per-Class Wali Kelas Section */}
-          <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-200 text-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-emerald-950 text-sm">
-                  Daftar Wali Kelas Masing-Masing Kelas
-                </h4>
-                <p className="text-slate-500 text-[11px]">
-                  Rapor tiap kelas otomatis mencantumkan nama wali kelasnya masing-masing
-                </p>
-              </div>
-            </div>
+          {(() => {
+            const registeredTeachers = users.filter((u) => u.role === 'walikelas');
+            const configuredMap = config.waliKelasPerClass || {};
+            const sortedClasses = Object.keys(configuredMap).sort((a, b) =>
+              a.localeCompare(b, undefined, { numeric: true })
+            );
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {['1.1', '2.1', '5'].map((cls) => {
-                const current = config.waliKelasPerClass?.[cls] || { name: '', nip: '' };
-                return (
-                  <div key={cls} className="bg-white p-3 rounded-lg border border-emerald-200 space-y-2">
-                    <div className="font-bold text-emerald-900 border-b border-slate-100 pb-1 flex items-center justify-between">
-                      <span>Wali Kelas {cls}</span>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-500 mb-0.5">Nama & Gelar</label>
-                      <input
-                        type="text"
-                        value={current.name}
-                        onChange={(e) => {
-                          const updatedMap = {
-                            ...(config.waliKelasPerClass || {}),
-                            [cls]: { ...current, name: e.target.value },
-                          };
-                          onUpdateConfig({ ...config, waliKelasPerClass: updatedMap });
-                        }}
-                        placeholder={`Nama Wali Kelas ${cls}`}
-                        className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:border-emerald-500 focus:outline-none font-medium"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-500 mb-0.5">NIP (Opsional)</label>
-                      <input
-                        type="text"
-                        value={current.nip || ''}
-                        onChange={(e) => {
-                          const updatedMap = {
-                            ...(config.waliKelasPerClass || {}),
-                            [cls]: { ...current, nip: e.target.value },
-                          };
-                          onUpdateConfig({ ...config, waliKelasPerClass: updatedMap });
-                        }}
-                        placeholder="NIP Wali Kelas"
-                        className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
+            const handleAddWali = (e: React.FormEvent) => {
+              e.preventDefault();
+              const cleanClass = newWaliKelas.trim();
+              const cleanName = newWaliName.trim();
+              if (!cleanClass || !cleanName) return;
+
+              const updatedMap = {
+                ...configuredMap,
+                [cleanClass]: {
+                  name: cleanName,
+                  nip: newWaliNip.trim() || undefined,
+                },
+              };
+              onUpdateConfig({ ...config, waliKelasPerClass: updatedMap });
+              setNewWaliKelas('');
+              setNewWaliName('');
+              setNewWaliNip('');
+              setIsAddingWali(false);
+            };
+
+            const handleDeleteWali = (clsToDelete: string) => {
+              if (window.confirm(`Hapus data wali kelas untuk Kelas ${clsToDelete}?`)) {
+                const updatedMap = { ...configuredMap };
+                delete updatedMap[clsToDelete];
+                onUpdateConfig({ ...config, waliKelasPerClass: updatedMap });
+              }
+            };
+
+            const handleUpdateField = (cls: string, field: 'name' | 'nip', value: string) => {
+              const current = configuredMap[cls] || { name: '', nip: '' };
+              const updatedMap = {
+                ...configuredMap,
+                [cls]: {
+                  ...current,
+                  [field]: value,
+                },
+              };
+              onUpdateConfig({ ...config, waliKelasPerClass: updatedMap });
+            };
+
+            const handleSyncFromUsers = () => {
+              if (registeredTeachers.length === 0) {
+                alert('Belum ada akun guru wali kelas yang terdaftar.');
+                return;
+              }
+              const updatedMap = { ...configuredMap };
+              let count = 0;
+              registeredTeachers.forEach((u) => {
+                if (u.assignedKelas) {
+                  const cls = u.assignedKelas.trim();
+                  updatedMap[cls] = {
+                    name: u.name,
+                    nip: u.nip || '',
+                  };
+                  count++;
+                }
+              });
+              onUpdateConfig({ ...config, waliKelasPerClass: updatedMap });
+              alert(`Berhasil menyinkronkan ${count} wali kelas dari akun guru terdaftar!`);
+            };
+
+            return (
+              <div className="p-4 bg-emerald-50/70 rounded-xl border border-emerald-200 text-xs space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-200/80 pb-3">
+                  <div>
+                    <h4 className="font-bold text-emerald-950 text-sm flex items-center gap-1.5">
+                      <UserCheck className="w-4 h-4 text-emerald-700" />
+                      <span>Daftar Wali Kelas Tiap Kelas ({sortedClasses.length})</span>
+                    </h4>
+                    <p className="text-slate-600 text-[11px] mt-0.5">
+                      Tanda tangan rapor otomatis mencantumkan nama dan NIP wali kelas sesuai kelas murid masing-masing
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+
+                  <div className="flex items-center gap-2">
+                    {registeredTeachers.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleSyncFromUsers}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                        title="Otomatis menyelaraskan daftar wali kelas dengan akun guru terdaftar"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Sinkron dari Akun Guru</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingWali(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah Wali Kelas</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Form Tambah Wali Kelas Baru */}
+                {isAddingWali && (
+                  <form
+                    onSubmit={handleAddWali}
+                    className="bg-white p-3.5 rounded-xl border border-emerald-300 shadow-2xs space-y-3 animate-in fade-in duration-150"
+                  >
+                    <div className="flex items-center justify-between font-bold text-emerald-900 border-b border-slate-100 pb-1.5">
+                      <span>+ Tambah Wali Kelas Baru</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingWali(false)}
+                        className="text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                      <div className="sm:col-span-3">
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Kelas
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Contoh: 1.2 / 3.1 / 4"
+                          value={newWaliKelas}
+                          onChange={(e) => setNewWaliKelas(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:border-emerald-600 focus:outline-none font-bold"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-5">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[11px] font-bold text-slate-700">
+                            Nama Lengkap & Gelar
+                          </label>
+                          {registeredTeachers.length > 0 && (
+                            <select
+                              onChange={(e) => {
+                                const u = registeredTeachers.find((t) => t.id === e.target.value);
+                                if (u) {
+                                  setNewWaliName(u.name);
+                                  setNewWaliNip(u.nip || '');
+                                  if (!newWaliKelas && u.assignedKelas) {
+                                    setNewWaliKelas(u.assignedKelas);
+                                  }
+                                }
+                              }}
+                              className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 cursor-pointer"
+                              defaultValue=""
+                            >
+                              <option value="" disabled>Pilih dari Guru...</option>
+                              {registeredTeachers.map((t) => (
+                                <option key={t.id} value={t.id}>
+                                  {t.name} (Kelas {t.assignedKelas})
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Contoh: Ustadzah Nurul Hidayah, S.Pd.I"
+                          value={newWaliName}
+                          onChange={(e) => setNewWaliName(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:border-emerald-600 focus:outline-none font-medium"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-4">
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          NIP / NUPTK (Opsional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Contoh: 19930512 201801 2 001"
+                          value={newWaliNip}
+                          onChange={(e) => setNewWaliNip(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:border-emerald-600 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingWali(false)}
+                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold cursor-pointer"
+                      >
+                        Simpan Wali Kelas
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* List of Wali Kelas Cards */}
+                {sortedClasses.length === 0 ? (
+                  <div className="p-6 bg-white rounded-xl border border-dashed border-emerald-300 text-center text-slate-500">
+                    Belum ada wali kelas khusus yang didaftarkan. Silakan klik tombol "+ Tambah Wali Kelas" di atas.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {sortedClasses.map((cls) => {
+                      const current = configuredMap[cls] || { name: '', nip: '' };
+                      return (
+                        <div
+                          key={cls}
+                          className="bg-white p-3 rounded-xl border border-emerald-200 shadow-2xs space-y-2 hover:border-emerald-400 transition-colors"
+                        >
+                          <div className="font-bold text-emerald-900 border-b border-slate-100 pb-1.5 flex items-center justify-between">
+                            <span className="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-md text-[11px] font-extrabold tracking-wide">
+                              Kelas {cls}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteWali(cls)}
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title={`Hapus Wali Kelas ${cls}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Quick pick from registered teachers */}
+                          {registeredTeachers.length > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <label className="text-[10px] text-slate-400 flex-shrink-0">Pilih:</label>
+                              <select
+                                onChange={(e) => {
+                                  const t = registeredTeachers.find((u) => u.id === e.target.value);
+                                  if (t) {
+                                    handleUpdateField(cls, 'name', t.name);
+                                    if (t.nip) handleUpdateField(cls, 'nip', t.nip);
+                                  }
+                                }}
+                                className="w-full text-[10px] py-0.5 px-1 bg-slate-50 border border-slate-200 rounded text-slate-700 cursor-pointer"
+                                defaultValue=""
+                              >
+                                <option value="" disabled>-- Ambil dari Akun Guru --</option>
+                                {registeredTeachers.map((t) => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name} (Kelas {t.assignedKelas})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Nama & Gelar</label>
+                            <input
+                              type="text"
+                              value={current.name}
+                              onChange={(e) => handleUpdateField(cls, 'name', e.target.value)}
+                              placeholder={`Nama Wali Kelas ${cls}`}
+                              className="w-full px-2 py-1 text-xs border border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-none font-medium"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">NIP / NUPTK</label>
+                            <input
+                              type="text"
+                              value={current.nip || ''}
+                              onChange={(e) => handleUpdateField(cls, 'nip', e.target.value)}
+                              placeholder="NIP Wali Kelas (Opsional)"
+                              className="w-full px-2 py-1 text-xs border border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Backup & Restore Data */}
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
